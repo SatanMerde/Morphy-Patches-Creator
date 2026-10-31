@@ -200,17 +200,6 @@ morphy-creator synthesize ./workspace \
 morphy-creator build ./generated_patches
 ```
 
-### 🌐 Local Web Studio (Browser GUI)
-
-Prefer a graphical interface? Launch Morphy's built-in local cyber dashboard in your browser:
-```bash
-morphy-creator studio
-```
-* **Drag-and-Drop APKs**: Select your APK visually without typing file paths.
-* **One-Click Presets**: Choose from built-in recipes (AdBlock, AMOLED Theme, Allow Screenshots, Bypass Root Detection).
-* **Live Progress**: Watch ingestion, semantic analysis, and patch synthesis happen in real time.
-
----
 
 ### 📦 Split APK / Bundle Merger (.apkm, .xapk, .apks)
 

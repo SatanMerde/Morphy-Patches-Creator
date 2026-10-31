@@ -45,14 +45,6 @@ def setup(client):
     MorphyDoctor.setup_client(client)
 
 @cli.command()
-@click.option("--port", default=8765, help="Port to bind the local Web Studio")
-@click.option("--no-browser", is_flag=True, help="Do not automatically open the browser")
-def studio(port, no_browser):
-    """Launch the local browser GUI for creating patches visually (zero terminal required)."""
-    from morphy_creator.web_studio import start_web_studio
-    start_web_studio(port=port, open_browser=not no_browser)
-
-@cli.command()
 def recipes():
     """List built-in battle-tested patch recipes (AdBlock, AMOLED, Screenshots, Root Bypass)."""
     table = Table(title="Built-in Morphe Patch Recipes")
