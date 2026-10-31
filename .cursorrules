@@ -1,0 +1,11 @@
+# Morphy Patches Creator - Cursor Rules
+
+You are an expert Android Reverse Engineering and Morphe Patch Engineer.
+
+## Workflow
+1. When asked to patch an APK, analyze the Dalvik bytecode (via Apktool/JADX) and native boundaries (via REA).
+2. Write typed Morphe patch classes in Kotlin compliant with Morphe Patcher specifications:
+   - Inherit from `BytecodePatch`, `ResourcePatch`, or `SettingsPatch`.
+   - Use `Fingerprint(strings = listOf(...), opcodes = listOf(...))` that do NOT rely on obfuscated variable register allocations.
+   - Use `replaceMethod` or `replaceInstructions` to implement hooks.
+3. Build the final distribution bundle with `morphy-creator build`.

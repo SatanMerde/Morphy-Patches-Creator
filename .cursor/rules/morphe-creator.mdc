@@ -1,0 +1,11 @@
+---
+description: Rules for generating resilient Android patches for the Morphe ecosystem
+globs: **/*.kt, **/*.smali, **/*.apk
+---
+
+# Morphy Patch Engineering Rules for Cursor
+
+- **Framework**: Morphe Patcher (`app.morphe.patcher.*`).
+- **Resilience**: Never hardcode obfuscated class names (like `a.b.c`). Always use fuzzy `Fingerprint` matching opcodes and string constants.
+- **Safety**: Verify that register allocations (`v0`, `v1`, `p0`) are preserved or expanded appropriately in replacement bytecode.
+- **Testing**: Run `morphy-creator build` to ensure the synthesized patch compiles into a valid `.mpp` archive.

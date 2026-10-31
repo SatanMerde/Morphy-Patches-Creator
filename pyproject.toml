@@ -33,6 +33,7 @@ requires-python = ">=3.10"
 
 [project.scripts]
 morphy-creator = "morphy_creator.cli:cli"
+morphy-mcp = "morphy_creator.mcp_server:run_stdio_server"
 
 [tool.setuptools.packages.find]
 include = ["morphy_creator*"]

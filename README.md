@@ -18,8 +18,8 @@
 
 ---
 
-[Key Features](#-key-features) •
-[The Three Pillars (Credits)](#-the-three-pillars--upstream-attribution) •
+[AI Client Integrations](#-universal-ai-client-integration-rea-architecture) •
+[The Pillars & Credits](#-the-pillars--upstream-attribution) •
 [Architecture](#-architecture--workflow) •
 [Quick Start & Setup](#-quick-start) •
 [Capabilities & Limitations](#-capabilities-vs-%EF%B8%8F-technical-limitations) •
@@ -40,7 +40,39 @@
 
 ---
 
-## 🏛️ The Three Pillars & Upstream Attribution
+---
+
+## 🤖 Universal AI Client Integration (REA Architecture)
+
+> [!NOTE]
+> **No API Keys Required!** Following the proven architecture of **REA (Reverse Engineer Anything)**, Morphy Patches Creator requires zero third-party API keys or subscription fees. The reasoning intelligence is provided directly by your connected AI coding client (**Claude Code, Antigravity IDE, Cursor, Codex, Windsurf**).
+
+Morphy equips your AI assistant with the tools, MCP servers, and rule contexts required to autonomously reverse engineer applications and synthesize production-ready Morphe patches.
+
+### 🌐 Supported AI Clients Matrix
+
+| AI Client | Integration Method | Configuration File | Command Setup |
+| :--- | :--- | :--- | :--- |
+| **Antigravity IDE** | Native Skill | `.agents/skills/morphe-patch-creator/SKILL.md` | `morphy-creator setup --client antigravity` |
+| **Claude Code / Desktop** | Native Agent & MCP | `CLAUDE.md` / `mcp_server.py` | `morphy-creator setup --client claude` |
+| **Cursor** | Cursor Rules & MDC | `.cursorrules` / `.cursor/rules/` | `morphy-creator setup --client cursor` |
+| **GitHub Copilot / Codex** | Agent Instructions | `.github/copilot-instructions.md` | `morphy-creator setup --client codex` |
+| **Windsurf** | Cascade Rules | `.windsurfrules` | `morphy-creator setup --client windsurf` |
+| **Any MCP Client** | Stdio MCP Protocol | `morphy-creator mcp` | Automatic JSON-RPC |
+
+### 🩺 Toolchain & Client Diagnostics (Doctor)
+
+Verify your environment readiness across Apktool, JADX, Androguard, and AI client rules in one command:
+```bash
+morphy-creator doctor
+```
+
+Configure all AI clients automatically:
+```bash
+morphy-creator setup --client all
+```
+
+## 🏛️ The Pillars & Upstream Attribution
 
 Morphy Patches Creator stands on the shoulders of giants. We give full credit, homage, and our highest gratitude to the authors and maintainers of the three foundational projects powering our engine:
 
@@ -194,7 +226,15 @@ For an exhaustive breakdown and edge-case mitigations, refer to [**`docs/LIMITAT
 
 ```
 Morphy-Patches-Creator/
+├── .agents/skills/                 # Antigravity IDE native skill
+├── .cursor/rules/                  # Cursor IDE patch creation rules
+├── .github/                        # Copilot/Codex instructions & issue templates
+├── CLAUDE.md                       # Claude Code & Claude Desktop agent instructions
+├── .cursorrules                    # Cursor root workspace rules
+├── .windsurfrules                  # Windsurf Cascade agent rules
 ├── morphy_creator/
+│   ├── mcp_server.py               # Standard Model Context Protocol (MCP) server
+│   ├── doctor.py                   # Multi-client environment doctor (REA-style)
 │   ├── adapters/
 │   │   ├── apktool_adapter.py      # Bridge to Apktool decompilation & resource decoding
 │   │   ├── rea_adapter.py          # Bridge to REA multi-target native & binary analysis
