@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "morphy-patches-creator"
+version = "1.0.0"
+description = "The Ultimate Morphe Patch Engineering Workbench - Powered by Apktool, REA & Morphe-AI"
+readme = "README.md"
+authors = [
+    { name = "SatanMerde", email = "research@example.com" }
+]
+license = { text = "Apache-2.0" }
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Security"
+]
+dependencies = [
+    "click>=8.1.0",
+    "jinja2>=3.1.0",
+    "rich>=13.0.0",
+    "pydantic>=2.0.0"
+]
+requires-python = ">=3.10"
+
+[project.scripts]
+morphy-creator = "morphy_creator.cli:cli"
