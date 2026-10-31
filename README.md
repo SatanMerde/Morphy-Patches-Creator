@@ -200,6 +200,44 @@ morphy-creator synthesize ./workspace \
 morphy-creator build ./generated_patches
 ```
 
+### 🌐 Local Web Studio (Browser GUI)
+
+Prefer a graphical interface? Launch Morphy's built-in local cyber dashboard in your browser:
+```bash
+morphy-creator studio
+```
+* **Drag-and-Drop APKs**: Select your APK visually without typing file paths.
+* **One-Click Presets**: Choose from built-in recipes (AdBlock, AMOLED Theme, Allow Screenshots, Bypass Root Detection).
+* **Live Progress**: Watch ingestion, semantic analysis, and patch synthesis happen in real time.
+
+---
+
+### 📦 Split APK / Bundle Merger (.apkm, .xapk, .apks)
+
+Automatically extract and resolve split packages into a unified base APK for analysis:
+```bash
+morphy-creator merge /path/to/bundle.apkm -o ./merged_apk
+```
+
+---
+
+### 🩺 Patch Verifier & Linter
+
+Lint synthesized Morphe Kotlin patches to ensure register safety, annotation validity, and fingerprint health:
+```bash
+morphy-creator verify ./generated_patches/MyPatch.kt
+```
+
+---
+
+### 📖 Built-in Battle-Tested Recipes Catalog
+
+Explore pre-configured recipes for common patch objectives:
+```bash
+morphy-creator recipes
+```
+
+
 ---
 
 ## 🎯 Capabilities vs. ⚠️ Technical Limitations

@@ -6,6 +6,9 @@ from rich.prompt import Prompt
 from pathlib import Path
 from morphy_creator.core.pipeline import PatchWorkbenchPipeline
 from morphy_creator.core.agent import AutonomousPatchAgent
+from morphy_creator.core.verifier import PatchVerifier
+from morphy_creator.core.split_merger import SplitApkMerger
+from morphy_creator.presets.catalog import RecipeManager
 from morphy_creator.doctor import MorphyDoctor, SUPPORTED_CLIENTS
 
 console = Console(legacy_windows=False)
@@ -40,6 +43,51 @@ def doctor():
 def setup(client):
     """Configure AI Client integrations (Claude Code, Antigravity, Cursor, Codex, Windsurf)."""
     MorphyDoctor.setup_client(client)
+
+@cli.command()
+@click.option("--port", default=8765, help="Port to bind the local Web Studio")
+@click.option("--no-browser", is_flag=True, help="Do not automatically open the browser")
+def studio(port, no_browser):
+    """Launch the local browser GUI for creating patches visually (zero terminal required)."""
+    from morphy_creator.web_studio import start_web_studio
+    start_web_studio(port=port, open_browser=not no_browser)
+
+@cli.command()
+def recipes():
+    """List built-in battle-tested patch recipes (AdBlock, AMOLED, Screenshots, Root Bypass)."""
+    table = Table(title="Built-in Morphe Patch Recipes")
+    table.add_column("Recipe ID", style="cyan")
+    table.add_column("Title", style="magenta")
+    table.add_column("Description", style="white")
+
+    for r in RecipeManager.list_recipes():
+        table.add_row(r["id"], r["title"], r["description"])
+    console.print(table)
+
+@cli.command()
+@click.argument("patch_file", type=click.Path(exists=True))
+def verify(patch_file):
+    """Lint and structurally verify a synthesized Morphe Kotlin patch before build."""
+    res = PatchVerifier.verify_patch_file(Path(patch_file))
+    if res["valid"]:
+        console.print(f"[bold green][OK] Patch valid (Health Score: {res['score']}/100):[/bold green] {patch_file}")
+    else:
+        console.print(f"[bold red][FAIL] Patch issues detected in {patch_file}:[/bold red]")
+        for err in res["errors"]:
+            console.print(f"  [red]- {err}[/red]")
+    for warn in res["warnings"]:
+        console.print(f"  [yellow][WARN] {warn}[/yellow]")
+
+@cli.command()
+@click.argument("bundle", type=click.Path(exists=True))
+@click.option("-o", "--output", default="./merged_splits", help="Destination folder for extracted base APK")
+def merge(bundle, output):
+    """Extract and resolve split APK bundles (.apkm, .xapk, .apks)."""
+    base_apk = SplitApkMerger.extract_and_merge(Path(bundle), Path(output))
+    if base_apk:
+        console.print(f"[bold green][OK] Primary base APK extracted:[/bold green] {base_apk}")
+    else:
+        console.print(f"[bold red][FAIL] Could not resolve base APK from {bundle}[/bold red]")
 
 @cli.command()
 def mcp():
