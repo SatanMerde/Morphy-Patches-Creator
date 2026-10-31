@@ -64,6 +64,16 @@ Morphy Patches Creator stands on the shoulders of giants. We give full credit, h
 
 ---
 
+### 4. 📄 [JADX](https://github.com/skylot/jadx) by @skylot
+* **Repository**: [https://github.com/skylot/jadx](https://github.com/skylot/jadx)
+* **Our Integration**: Provides high-level Java source code decompilation synchronized with Smali, allowing LLMs and AI agents to understand application logic and semantics effortlessly.
+
+### 5. 🔍 [Androguard](https://github.com/androguard/androguard) by Anthony Desnos
+* **Repository**: [https://github.com/androguard/androguard](https://github.com/androguard/androguard)
+* **Our Integration**: Fast pure-Python static analysis, control flow graphing (CFG), and string/method cross-referencing.
+
+---
+
 ## ⚡ Key Features
 
 - **⚡ Unified CLI & Agentic Pipeline**: From raw APK to compiled Morphe `.mpp` patch bundle in a single command.
@@ -124,7 +134,22 @@ cd Morphy-Patches-Creator
 pip install -e .
 ```
 
-### Basic Usage
+### 🤖 Zero-Code AI Mode (Créez des patchs sans savoir coder)
+
+> **Aucune compétence en programmation requise !** Décrivez simplement votre objectif en français ou en anglais, et l'agent IA de Morphy analyse l'APK, localise les points d'ancrage, écrit le patch Kotlin et génère le bundle `.mpp` prêt pour **Morphe Manager** :
+
+```bash
+# 1. Mode automatique instantané en une seule commande :
+morphy-creator auto app.apk --prompt "Remove all ads and banners" -o ./my_patches
+
+# 2. Ou lancez l'assistant interactif guidé :
+morphy-creator wizard
+```
+
+---
+
+### 🛠️ Advanced Developer Pipeline (CLI Manuel)
+
 
 ```bash
 # 1. Inspect an APK and extract its components (via Apktool)
