@@ -20,8 +20,8 @@
 [Key Features](#-key-features) •
 [The Three Pillars (Credits)](#-the-three-pillars--upstream-attribution) •
 [Architecture](#-architecture--workflow) •
-[Quick Start](#-quick-start) •
-[Documentation](#-documentation) •
+[Quick Start & Setup](#-quick-start) •
+[Capabilities & Limitations](#-capabilities-vs-%EF%B8%8F-technical-limitations) •
 [Legal & Ethics](#%EF%B8%8F-legal--ethical-disclaimer)
 
 ---
@@ -144,6 +144,26 @@ morphy-creator build ./generated_patches
 
 ---
 
+## 🎯 Capabilities vs. ⚠️ Technical Limitations
+
+For an exhaustive breakdown and edge-case mitigations, refer to [**`docs/LIMITATIONS.md`**](docs/LIMITATIONS.md).
+
+### ✅ What Morphy Patches Creator Can Do
+- **Multi-DEX & Split APK Ingestion**: Decompiles monolithic APKs, split APK sets (`APKM`, `APKS`, base + config splits), and extracts Dalvik bytecode via **Apktool**.
+- **Binary XML & Resource Resolution**: Fully decodes `AndroidManifest.xml` and maps `resources.arsc` table IDs to human-readable UI attributes.
+- **Deep Native Introspection**: Dissects `.so` C/C++ libraries (ARM64/x86), identifies JNI export functions, maps cross-references, and detects anti-tamper logic via **REA**.
+- **Resilient Opcode Fingerprinting**: Generates update-tolerant AST fingerprints that survive ProGuard, R8, and DexGuard renaming.
+- **Idiomatic Kotlin Patch Synthesis**: Translates analyzed targets into production-grade Morphe patch classes (`replaceMethod`, `replaceInstructions`, `Fingerprint`) via **Morphe-AI**.
+- **One-Click Patch Bundling**: Simulates patches with dry-run verification and compiles distribution `.mpp` archives.
+
+### ⚠️ What Morphy Patches Creator Cannot Do (Technical Boundaries)
+1. **Server-Side Authorization**: Patches operate exclusively on the local client. Features enforced by remote backend servers (e.g., server-verified subscriptions, remote database entitlements, cloud-side DRM token generation) cannot be granted via client bytecode modification.
+2. **Commercial Native Kernel Packers**: Targets armored with heavy commercial packers (*SecNeo, Tencent Legu, Bangcle, DexGuard O-LLVM*) that encrypt DEX files on disk require a memory dump (via dynamic dumping or Frida runtime) before Morphy can decompile them.
+3. **Hardware TEE / StrongBox Play Integrity**: Cryptographic hardware attestation executed inside the secure enclave (TEE/Keymint) cannot be bypassed with Dalvik bytecode patches; it requires system/kernel-level solutions (such as Zygisk modules).
+4. **Dynamically Loaded Cloud Payloads**: Bytecode fetched from the cloud at runtime cannot be analyzed purely statically and requires dynamic REA tracing during an active runtime session.
+
+---
+
 ## 📂 Project Structure
 
 ```
@@ -165,6 +185,7 @@ Morphy-Patches-Creator/
 │   ├── ARCHITECTURE.md             # Detailed engineering and component blueprint
 │   ├── CREDITS.md                  # Comprehensive attribution & upstream profiles
 │   ├── LEGAL.md                    # Legal framework, compliance & ethical boundaries
+│   ├── LIMITATIONS.md              # Deep breakdown of capabilities vs boundaries
 │   └── GETTING_STARTED.md          # Step-by-step developer tutorial
 ├── tests/                          # Automated unit and integration tests
 ├── pyproject.toml
