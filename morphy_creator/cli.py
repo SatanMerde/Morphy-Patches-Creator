@@ -27,7 +27,7 @@ def about():
 
 @cli.command()
 @click.argument("apk", type=click.Path(exists=True))
-@click.option("-o", "--output", default="./workspace", help="Extraction directory")
+@click.option("-o", "--output", default="./workspace", help="Extraction destination directory")
 def unpack(apk, output):
     """Unpack APK resources, manifest, and Dalvik bytecode using Apktool."""
     console.print(f"[bold blue]Unpacking APK:[/bold blue] {apk} -> {output}")
@@ -56,6 +56,15 @@ def synthesize(workspace, type, feature, output):
     pipeline = PatchWorkbenchPipeline()
     out = pipeline.run_full_pipeline(Path(workspace), Path(output), feature=feature)
     console.print(f"[bold green]Patch generated successfully:[/bold green] {out}")
+
+@cli.command()
+@click.argument("patches_dir", type=click.Path())
+@click.option("-o", "--output", default="./build/patches.mpp", help="Output .mpp patch bundle path")
+def build(patches_dir, output):
+    """Assemble and build synthesized Kotlin patches into a Morphe .mpp distribution bundle."""
+    pipeline = PatchWorkbenchPipeline()
+    out = pipeline.build_bundle(Path(patches_dir), Path(output))
+    console.print(f"[bold green]Patch bundle compiled successfully:[/bold green] {out}")
 
 if __name__ == "__main__":
     cli()

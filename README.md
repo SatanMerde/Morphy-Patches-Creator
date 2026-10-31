@@ -7,6 +7,7 @@
 # 🛠️ Morphy Patches Creator
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![CI](https://github.com/SatanMerde/Morphy-Patches-Creator/actions/workflows/ci.yml/badge.svg)](https://github.com/SatanMerde/Morphy-Patches-Creator/actions/workflows/ci.yml)
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
 [![Target](https://img.shields.io/badge/Ecosystem-Morphe%20Patcher-orange.svg)](https://github.com/MorpheApp)
 [![Vibe Coded](https://img.shields.io/badge/Built%20With-Vibe%20Coding-8a2be2.svg)]()
