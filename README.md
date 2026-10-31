@@ -134,21 +134,21 @@ cd Morphy-Patches-Creator
 pip install -e .
 ```
 
-### 🤖 Zero-Code AI Mode (Créez des patchs sans savoir coder)
+### 🤖 Zero-Code AI Mode (Create Patches Without Coding)
 
-> **Aucune compétence en programmation requise !** Décrivez simplement votre objectif en français ou en anglais, et l'agent IA de Morphy analyse l'APK, localise les points d'ancrage, écrit le patch Kotlin et génère le bundle `.mpp` prêt pour **Morphe Manager** :
+> **No programming experience required!** Simply describe your objective in natural language, and Morphy's AI agent analyzes the target APK, pinpoints hook targets, generates resilient Kotlin code, and compiles the ready-to-use `.mpp` bundle for **Morphe Manager**:
 
 ```bash
-# 1. Mode automatique instantané en une seule commande :
+# 1. Instant one-line automated patch creation:
 morphy-creator auto app.apk --prompt "Remove all ads and banners" -o ./my_patches
 
-# 2. Ou lancez l'assistant interactif guidé :
+# 2. Or launch the step-by-step interactive wizard:
 morphy-creator wizard
 ```
 
 ---
 
-### 🛠️ Advanced Developer Pipeline (CLI Manuel)
+### 🛠️ Advanced Developer Pipeline (Manual CLI)
 
 
 ```bash
