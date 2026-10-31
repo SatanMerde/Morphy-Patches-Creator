@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="cyberNeon" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#4F46E5"/>
+            <stop offset="30%" stop-color="#9333EA"/>
+            <stop offset="70%" stop-color="#FF007F"/>
+            <stop offset="100%" stop-color="#FF71CE"/>
+        </linearGradient>
+        <linearGradient id="glowBorder" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#9333EA"/>
+            <stop offset="100%" stop-color="#FF007F"/>
+        </linearGradient>
+    </defs>
+
+    <!-- Deep Carbon Black-Violet Squircle -->
+    <path id="Frame" d="M146,16 h220 c78,0 140,62 140,140 v200 c0,78 -62,140 -140,140 H146 C68,496 6,434 6,356 V156 C6,78 68,16 146,16 Z" fill="#0A0210"/>
+    <path d="M146,16 h220 c78,0 140,62 140,140 v200 c0,78 -62,140 -140,140 H146 C68,496 6,434 6,356 V156 C6,78 68,16 146,16 Z" fill="none" stroke="url(#glowBorder)" stroke-width="4"/>
+
+    <!-- Glowing Morphe Ribbon -->
+    <g id="MorpheGlyph" transform="translate(0, -25)">
+        <path id="Left" d="M123,130 c-21,0 -39,17 -40,38 v170 c1,21 19,38 40,38 21,0 39,-17 40,-38 V168 c-1,-21 -19,-38 -40,-38 z" fill="#9333EA"/>
+        <path id="Right" d="M349,260 v75 c1,21 19,38 40,38 21,0 39,-17 40,-38 V168 c-11,-14 -74,63 -80,92 z" fill="#FF007F"/>
+        <path id="Middle" d="M127,100 c-34,0 -44,25 -44,40 v48 c30,-30 75,24 80,30 28,28 44,78 93,80 48,-2 67,-50 93,-80 0,0 45,-66 80,-72 0,-25 -11,-42 -44,-42 -34,0 -58,45 -75,65 -17,20 -25,41 -54,41 -29,0 -38,-22 -54,-41 -17,-20 -41,-65 -75,-65 z" fill="url(#cyberNeon)"/>
+    </g>
+
+    <!-- Glowing Neon Text "CREATOR" -->
+    <text x="256" y="432" text-anchor="middle" font-family="'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-weight="900" font-size="44" letter-spacing="14" fill="#FF71CE">CREATOR</text>
+</svg>

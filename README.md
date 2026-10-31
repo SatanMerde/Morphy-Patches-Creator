@@ -1,6 +1,10 @@
-# 🛠️ Morphy Patches Creator
+
 
 <div align="center">
+
+<img src="assets/logo.png" alt="Morphy Patches Creator Logo" width="180"/>
+
+# 🛠️ Morphy Patches Creator
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
