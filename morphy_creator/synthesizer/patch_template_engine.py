@@ -1,6 +1,6 @@
 from jinja2 import Template
 
-KOTLIN_PATCH_TEMPLATE = """package app.morphe.patches.{{ package_name }}
+KOTLIN_PATCH_TEMPLATE = '''package app.morphe.patches.{{ package_name }}
 
 import app.morphe.patcher.annotation.Patch
 import app.morphe.patcher.patch.BytecodePatch
@@ -30,7 +30,7 @@ object {{ class_name }} : BytecodePatch(
         }
     }
 }
-"""
+'''
 
 class PatchTemplateEngine:
     @staticmethod
