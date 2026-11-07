@@ -10,6 +10,8 @@
 [![CI](https://github.com/SatanMerde/Morphy-Patches-Creator/actions/workflows/ci.yml/badge.svg)](https://github.com/SatanMerde/Morphy-Patches-Creator/actions/workflows/ci.yml)
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
 [![Target](https://img.shields.io/badge/Ecosystem-Morphe%20Patcher-orange.svg)](https://github.com/MorpheApp)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2.svg?logo=discord&logoColor=white)](https://discord.gg/pw9wNbDzMx)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20Project-FF5E5B.svg?logo=kofi&logoColor=white)](https://ko-fi.com/satanmerde)
 [![Vibe Coded](https://img.shields.io/badge/Built%20With-Vibe%20Coding-8a2be2.svg)]()
 
 **The Ultimate Reverse Engineering Workbench & Automated Patch Synthesis Pipeline for Android**
@@ -302,6 +304,22 @@ Morphy-Patches-Creator/
 
 Contributions, issues, and feature requests are welcome!  
 Feel free to check out the [issues page](https://github.com/SatanMerde/Morphy-Patches-Creator/issues).
+
+---
+
+## 💖 Support the Project
+
+If you appreciate **Morphy Patches Creator** and would like to support ongoing development, maintenance, and AI integrations, consider buying me a coffee on **Ko-fi** or joining the community:
+
+<p align="center">
+  <a href="https://ko-fi.com/satanmerde">
+    <img src="https://img.shields.io/badge/Ko--fi-Support_on_Ko--fi-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white" alt="Support on Ko-fi">
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://discord.gg/pw9wNbDzMx">
+    <img src="https://img.shields.io/badge/Discord-Join_Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord Community">
+  </a>
+</p>
 
 ---
 
