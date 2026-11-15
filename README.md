@@ -1,329 +1,338 @@
-
-
 <div align="center">
 
-<img src="assets/logo.png" alt="Morphy Patches Creator Logo" width="180"/>
+<img src="assets/logo.png" alt="Morphy Patches Creator" width="160"/>
 
-# 🛠️ Morphy Patches Creator
+# Morphy Patches Creator
+
+**Turn a plain-English goal into a Morphe patch — without writing code.**
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![CI](https://github.com/SatanMerde/Morphy-Patches-Creator/actions/workflows/ci.yml/badge.svg)](https://github.com/SatanMerde/Morphy-Patches-Creator/actions/workflows/ci.yml)
-[![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
-[![Target](https://img.shields.io/badge/Ecosystem-Morphe%20Patcher-orange.svg)](https://github.com/MorpheApp)
-[![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2.svg?logo=discord&logoColor=white)](https://discord.gg/pw9wNbDzMx)
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20Project-FF5E5B.svg?logo=kofi&logoColor=white)](https://ko-fi.com/satanmerde)
-[![Vibe Coded](https://img.shields.io/badge/Built%20With-Vibe%20Coding-8a2be2.svg)]()
-
-**The Ultimate Reverse Engineering Workbench & Automated Patch Synthesis Pipeline for Android**
-
-*Unifying the decompilation power of **Apktool**, the deep binary & native introspection of **REA**, and the automated bytecode synthesis of **Morphe-AI**.*
-
----
-
-[AI Clients & MCP](#-supported-ai-clients--mcp-protocol) •
-[The Pillars & Credits](#-the-pillars--upstream-attribution) •
-[Architecture](#-architecture--workflow) •
-[Quick Start & Setup](#-quick-start) •
-[Capabilities & Limitations](#-capabilities-vs-%EF%B8%8F-technical-limitations) •
-[Legal & Ethics](#%EF%B8%8F-legal--ethical-disclaimer)
-
----
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
+[![Ecosystem](https://img.shields.io/badge/Ecosystem-Morphe%20Patcher-orange.svg)](https://github.com/MorpheApp)
 
 </div>
 
-## 🌟 Overview
+---
 
-**Morphy Patches Creator** is an end-to-end patch development workbench built for the **Morphe** ecosystem. Developing resilient patches for modern Android apps requires mastering three distinct disciplines:
-1. **Resource & Smali Unpacking**: Parsing binary XML, resolving `resources.arsc`, and extracting Dalvik bytecode.
-2. **Deep Binary & Native Introspection**: Analyzing native libraries (`.so`), mapping cross-references, tracing control flow graphs, and unmasking obfuscated routines.
-3. **Patch Synthesis**: Translating analyzed hooks into resilient, upgrade-tolerant Kotlin code that complies with Morphe's AST and bytecode manipulation API.
+## What this is
 
-**Morphy Patches Creator bridges these disciplines by seamlessly integrating three industry-leading open-source engineering pillars into one unified, cohesive workflow.**
+Morphy Patches Creator is a guided assistant for building [Morphe](https://github.com/MorpheApp) patches.
+
+You answer four questions:
+
+1. Which app? (drop an `.apk` on the window)
+2. What should change? (pick a goal such as "remove ads")
+3. Review what was found — every target comes with the reason it was picked
+4. Done: get the patch code, a plain-English report, and an installable `.mpp` when the build tools are available
+
+You do **not** need to know Kotlin, smali, or how Android is built. You **do** get to see and approve the exact methods that will be changed.
+
+> **Honest by design.** The analysis is real: it reads the app's own DEX bytecode, never a mock. If a `.mpp` cannot be compiled on your machine, the tool says so and gives you a ready-to-build project — it never hands you a fake bundle.
 
 ---
 
-## 🤖 Supported AI Clients & MCP Protocol
+## Quick start (Windows)
 
-Morphy Patches Creator acts as a native reverse-engineering and patch synthesis extension for AI assistants. Simply open this repository in your preferred AI environment—your agent automatically connects to Morphy's Model Context Protocol (MCP) server and toolchain to analyze applications, trace opcodes, and write resilient Morphe patches.
+```powershell
+git clone https://github.com/SatanMerde/Morphy-Patches-Creator.git
+cd Morphy-Patches-Creator
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\morphy-creator.exe
+```
 
-### 🌐 Client Compatibility Matrix
+That last command starts the wizard. On Linux/macOS use `python -m venv .venv`, `source .venv/bin/activate`, `pip install -e .`, then `morphy-creator`.
 
-| AI Environment | Integration Type | Configuration File | Auto-Setup Command |
-| :--- | :--- | :--- | :--- |
-| **Antigravity IDE** | Native Skill | `.agents/skills/morphe-patch-creator/SKILL.md` | `morphy-creator setup --client antigravity` |
-| **Claude Code & Desktop** | MCP & Agent Rules | `CLAUDE.md` | `morphy-creator setup --client claude` |
-| **Cursor** | Rules & MDC | `.cursorrules` / `.cursor/rules/` | `morphy-creator setup --client cursor` |
-| **GitHub Copilot & Codex** | Agent Instructions | `.github/copilot-instructions.md` | `morphy-creator setup --client codex` |
-| **Windsurf** | Cascade Rules | `.windsurfrules` | `morphy-creator setup --client windsurf` |
-| **Any MCP Host** | Stdio Protocol | `morphy-creator mcp` | Automatic JSON-RPC |
+Check the environment at any time:
 
-### 🩺 Environment & Client Diagnostics
-
-Run diagnostics to verify that your decompilers and client rules are ready:
-```bash
+```powershell
 morphy-creator doctor
 ```
 
-Configure all AI client integrations in a single command:
-```bash
-morphy-creator setup --client all
+`doctor` tells you, in plain words, what is ready and what is missing — and only flags as required the things the pipeline actually uses.
+
+---
+
+## The wizard, step by step
+
+```
+Step 1 of 4 - Which app?
+  Drag the .apk file into this window, or paste its path.
+
+Step 2 of 4 - What should the patch do?
+  1  Remove ads                                  - Hide banners, interstitials and rewarded videos
+  2  Unlock premium / paid features              - Bypass in-app purchase and subscription checks
+  3  Allow screenshots                           - Stop the app from blocking screen capture
+  4  Bypass root detection                       - Let the app run on a rooted phone
+  5  Bypass emulator detection                   - Let the app run inside an emulator or on a PC
+  6  Disable analytics and tracking              - Stop the app from reporting what you do
+  7  Block forced updates                        - Keep using the version you patched
+  8  Remove a watermark or overlay               - Get clean screenshots and exports
+  a  Something else                              - describe it in your own words
+```
+
+You can answer `1,3` to combine goals, or write a sentence:
+
+```
+Choose one or more numbers (example: 1,3), or a
+> remove the ads and let me take screenshots
+
+I understood: Remove ads, Allow screenshots
+Use these? [Y/n]:
+```
+
+Then the tool reads the app and shows a table like this:
+
+```
++------------------------------------------------------------------------------+
+|                            What I found in the app                           |
++------------------+----------------+---------------------------------+--------+
+| Goal             | Result         | Best target                     | Trust  |
+|------------------+----------------+---------------------------------+--------|
+| Allow screenshots| 4 candidate(s)  | ...BaseActivity.onResume        | high   |
++------------------+----------------+---------------------------------+--------+
+```
+
+…followed by the plan in plain English:
+
+```
+Plan
+  Allow screenshots - Finds code that adds the FLAG_SECURE window flag…
+    * org.example.BaseDialog.onViewCreated: remove the blocking flag
+    * org.example.BaseActivity.onResume: remove the blocking flag
+```
+
+Nothing is written until you confirm.
+
+---
+
+## Supported goals
+
+| id | Goal | What it really changes | Typical limits |
+|---|---|---|---|
+| `ads` | Remove ads | Ad decision methods (`showAd`, `isAdLoaded`, …) return "no" / do nothing | Server-side ad stitching, some video ads |
+| `premium` | Unlock premium | Local checks (`isPremium`, `hasSubscription`, …) answer "yes" | Server-verified purchases |
+| `screenshots` | Allow screenshots | Removes the `FLAG_SECURE` window flag (literal `0x2000`) | Apps that blank the screen with a custom overlay |
+| `root` | Bypass root detection | Root checks (`isRooted`, RootBeer, su lookups) report "not rooted" | Hardware attestation, Play Integrity strong verdict |
+| `emulator` | Bypass emulator detection | Emulator checks report "real device" | Hardware attestation |
+| `tracking` | Disable analytics | Analytics entry points (`logEvent`, `trackEvent`, …) are neutralised | Server-side logging; shared crash-report methods |
+| `updates` | Block forced updates | Update prompts (`isUpdateRequired`, `forceUpdate`, …) answer "no" | Compatibility blocks that disable the app |
+| `screenshot_watermark` | Remove watermark/overlay | Watermark drawing methods do nothing | Overlays rendered outside the app |
+| `custom` | Anything else | Searches method names, class names and text for your own words | Best-effort; review the suggestions |
+
+Every candidate is scored on concrete evidence: a method-name match, a call into a known SDK, a blocking literal, plus contextual corroboration. Constructors, vendored libraries (`androidx`, `kotlin`, …), look-alike names (`isAdded` vs `isAd`), and methods *inside* a bundled SDK are filtered out or demoted, so the plan points at the app's own decision, not an SDK's internal helper.
+
+---
+
+## Commands
+
+| Command | Purpose |
+|---|---|
+| `morphy-creator` | Interactive wizard (the recommended path) |
+| `morphy-creator inspect app.apk` | Analyse only, write nothing (`--details` shows the evidence) |
+| `morphy-creator create app.apk --for ads,premium -y` | Same pipeline, non-interactive |
+| `morphy-creator auto app.apk --prompt "remove ads and screenshots"` | Goal in plain words |
+| `morphy-creator build <folder>` | Compile generated patches into a `.mpp` |
+| `morphy-creator verify <file.kt>` | Structural/API check on one patch file |
+| `morphy-creator unpack app.apk` | Apktool decompilation (manifest, resources, smali) |
+| `morphy-creator merge bundle.apkm` | Extract the base APK from a split bundle |
+| `morphy-creator recipes` | List the goals with their ids |
+| `morphy-creator doctor` | Check Python / Java / Git / Apktool / JADX / registry token |
+| `morphy-creator mcp` | Start the MCP server for AI assistants |
+
+Every command accepts `--help`. Add `--debug` to any failing command to see the technical traceback.
+
+---
+
+## What you get
+
+```
+morphy-output/
+├── src/
+│   └── app/morphe/patches/screenshots/AllowScreenshotsPatch.kt
+├── dist/
+│   ├── patches-1.0.0.mpp          <- installable bundle (when the build can run)
+│   └── morphy-project.zip         <- otherwise: sources + setup steps
+├── project/                        <- official Morphe template project
+└── REPORT.txt                      <- plain-English report: targets, reasons, limits
+```
+
+### Getting a real `.mpp`
+
+A Morphe `.mpp` is a JAR that contains **compiled** patch classes plus a `classes.dex` produced by D8. Producing it requires the official Morphe Gradle toolchain:
+
+1. **JDK 17 or newer** on `PATH`
+2. **Git** (to fetch `MorpheApp/morphe-patches-template`)
+3. **A GitHub token with `read:packages`**, because Morphe publishes its Gradle plugin and patcher in a private GitHub Packages registry
+
+Add the token once:
+
+```properties
+# %USERPROFILE%\.gradle\gradle.properties
+gpr.user=your-github-username
+gpr.key=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+Or set the `GITHUB_TOKEN` environment variable. Then:
+
+```powershell
+morphy-creator build .\morphy-output
+# -> patches\build\libs\patches-<version>.mpp copied to .\morphy-output\dist\
+```
+
+Without the token, `build` returns `dist/morphy-project.zip` plus the exact steps above. That is a deliberate choice: an `.mpp` without `classes.dex` is rejected by Morphe Manager, so shipping one would only waste your time.
+
+### Installing the patch
+
+1. Copy the `.mpp` to your phone.
+2. Open **Morphe Manager**, import the bundle, select the app.
+3. Apply, then reinstall the app when asked.
+4. If something breaks, uninstall and reinstall the original APK — that restores the unpatched app.
+
+---
+
+## What a generated patch looks like
+
+Generated code targets the current API (`app.morphe.patcher`). There is **no `@Patch` annotation** and **no `replaceMethod`** in this API — a patch is a public top-level `val` created by `patch(...)`:
+
+```kotlin
+package app.morphe.patches.screenshots
+
+import app.morphe.patcher.Fingerprint
+import app.morphe.patcher.literal
+import app.morphe.patcher.match
+import app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction
+import app.morphe.patcher.patch.Compatibility
+import app.morphe.patcher.patch.patch
+
+@Suppress("unused")
+val allowScreenshotsPatch = patch(
+    name = "Allow screenshots",
+    description = "Stop the app from blocking screen capture.",
+    default = true,
+) {
+    compatibleWith(Compatibility("org.example.app", "app"))
+
+    execute {
+        // org.example.BaseActivity.onResume: remove the blocking flag
+        val target1 = onResumeFingerprint.match()
+        val index1 = target1.instructionMatches.first().index
+        target1.method.replaceInstruction(index1, "const/16 v4, 0x0")
+    }
+}
+
+private object onResumeFingerprint : Fingerprint(
+    definingClass = "Lorg/example/BaseActivity;",
+    name = "onResume",
+    returnType = "V",
+    parameters = listOf(),
+    filters = listOf(literal(8192)),
+)
+```
+
+The header comment names the app, the method, and why it was chosen. A developer can read it; you never have to.
+
+---
+
+## What it cannot do
+
+- **Server-side entitlements.** If a paid feature is verified by a backend, no client patch grants it.
+- **Hardware attestation.** Play Integrity strong verdict / TEE checks are outside Dalvik bytecode.
+- **Packed code.** Legu, Jiagu, SecNeo, DexGuard-class protectors encrypt DEX files; the analysis reports the protection instead of guessing.
+- **Dynamically loaded code.** Bytecode fetched at runtime is invisible to static analysis.
+- **Fake bundles.** If compilation is impossible, you get sources and instructions, never a `.mpp` that pretends to work.
+
+See [docs/LIMITATIONS.md](docs/LIMITATIONS.md) for the detailed breakdown.
+
+---
+
+## AI assistants (MCP)
+
+`morphy-creator mcp` exposes six tools over the Model Context Protocol:
+
+| Tool | Purpose |
+|---|---|
+| `morphy_list_goals` | List supported goals |
+| `morphy_inspect_apk` | Analyse an APK and explain what is patchable |
+| `morphy_create_patch` | Analyse → generate Kotlin → self-check → package |
+| `morphe_unpack_apk` | Apktool decompilation |
+| `morphe_decompile_java` | JADX decompilation |
+| `morphe_build_bundle` | Compile generated sources into a `.mpp` |
+
+Example OpenCode / Claude Desktop configuration:
+
+```jsonc
+{
+  "mcp": {
+    "morphy": {
+      "type": "local",
+      "command": ["C:\\path\\to\\Morphy-Patches-Creator\\.venv\\Scripts\\morphy-creator.exe", "mcp"],
+      "enabled": true,
+      "timeout": 600000
+    }
+  }
+}
 ```
 
 ---
 
-## 🏛️ The Pillars & Upstream Attribution
-
-Morphy Patches Creator stands on the shoulders of giants. We give full credit, homage, and our highest gratitude to the authors and maintainers of the three foundational projects powering our engine:
-
-### 1. 📦 [Apktool](https://github.com/iBotPeaches/Apktool) by Connor Tumbleson & Ryszard Wiśniewski
-* **Creator / Lead Maintainer**: Connor Tumbleson ([@iBotPeaches](https://github.com/iBotPeaches)) and Ryszard Wiśniewski ([@brutall](https://github.com/brutall))
-* **Repository**: [https://github.com/iBotPeaches/Apktool](https://github.com/iBotPeaches/Apktool)
-* **License**: Apache 2.0
-* **Our Integration**: Apktool serves as the primary ingestion and disassembly foundation. It unpacks APKs and split APK bundles (APKM/APKS), decodes binary Android XML (`AndroidManifest.xml`), decodes `resources.arsc` IDs, and disassembles Dalvik bytecode into Smali ASTs for structural analysis.
-
-### 2. 🔬 [REA (Reverse Engineer Anything)](https://github.com/morluto/rea) by @morluto
-* **Creator / Lead Maintainer**: [@morluto](https://github.com/morluto)
-* **Repository**: [https://github.com/morluto/rea](https://github.com/morluto/rea)
-* **License**: Open Source
-* **Our Integration**: REA powers Morphy's deep inspection phase. Whenever an app relies on native C/C++ libraries (`.so`), JNI boundaries, Il2Cpp metadata, or intricate cross-reference chains, REA's multi-target reverse engineering engine analyzes instruction flows, detects security triggers, maps callers/callees, and correlates static symbols with runtime behavior.
-
-### 3. 🧠 [Morphe-AI](https://github.com/Paresh-Maheshwari/morphe-ai) by Paresh Maheshwari
-* **Creator / Lead Maintainer**: Paresh Maheshwari ([@Paresh-Maheshwari](https://github.com/Paresh-Maheshwari))
-* **Repository**: [https://github.com/Paresh-Maheshwari/morphe-ai](https://github.com/Paresh-Maheshwari/morphe-ai)
-* **License**: Open Source
-* **Our Integration**: Morphe-AI provides the cognitive patch generation core. It evaluates the disassembly and native findings to synthesize production-ready Kotlin patch definitions compliant with Morphe Patcher (e.g., generating resilient `Fingerprint` matchers, `replaceInstructions`, `replaceMethod`, and parameter overrides that survive target app updates).
-
----
-
-### 4. 📄 [JADX](https://github.com/skylot/jadx) by @skylot
-* **Repository**: [https://github.com/skylot/jadx](https://github.com/skylot/jadx)
-* **Our Integration**: Provides high-level Java source code decompilation synchronized with Smali, allowing LLMs and AI agents to understand application logic and semantics effortlessly.
-
-### 5. 🔍 [Androguard](https://github.com/androguard/androguard) by Anthony Desnos
-* **Repository**: [https://github.com/androguard/androguard](https://github.com/androguard/androguard)
-* **Our Integration**: Fast pure-Python static analysis, control flow graphing (CFG), and string/method cross-referencing.
-
----
-
-## ⚡ Key Features
-
-- **⚡ Unified CLI & Agentic Pipeline**: From raw APK to compiled Morphe `.mpp` patch bundle in a single command.
-- **🎯 Resilient Fingerprinting**: Generates opcode-sequence and string-based fingerprints that withstand ProGuard, R8, and DexGuard obfuscation.
-- **🧩 Split APK & Dynamic Features**: Full support for base + split APKs, merging, and localized resources.
-- **🛡️ Native Boundary Mapping**: Traces Java-to-Native (JNI) calls to identify bypass targets in native libraries.
-- **📝 Idiomatic Kotlin Generation**: Produces clean, readable Morphe patch classes adhering to official patch architecture.
-- **🧪 Dry-Run Patch Verification**: Simulates patch execution against the decompiled target before building to catch AST discrepancies early.
-
----
-
-## 🏗️ Architecture & Workflow
-
-```mermaid
-flowchart TD
-    subgraph Ingestion [1. Ingestion & Disassembly]
-        A["Target APK / Split APKM"] --> B["Apktool Engine"]
-        B --> C["AndroidManifest.xml & Resources"]
-        B --> D["Smali AST & Bytecode"]
-    end
-
-    subgraph DeepAnalysis [2. Deep Binary & Native Introspection]
-        A --> E["Native Libraries (.so)"]
-        E --> F["REA Reverse Engineering Core"]
-        F --> G["Cross-References & Call Graphs"]
-        F --> H["JNI & Native Boundary Analysis"]
-    end
-
-    subgraph Synthesis [3. Cognitive Patch Synthesis]
-        C & D & G & H --> I["Morphe-AI Synthesizer"]
-        I --> J["Resilient Fingerprint Detection"]
-        I --> K["Kotlin Morphe Patch Generator"]
-    end
-
-    subgraph Packaging [4. Compilation & Bundle]
-        K --> L["Gradle Morphe Compiler"]
-        L --> M["Production Morphe Patch Bundle (.mpp)"]
-    end
-```
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-- **Python**: 3.10 or later
-- **Java JRE/JDK**: 17 or later (for Apktool & Morphe Gradle builds)
-- **Git**
-
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/SatanMerde/Morphy-Patches-Creator.git
-cd Morphy-Patches-Creator
-
-# Install dependencies and CLI
-pip install -e .
-```
-
-### 🤖 Zero-Code AI Mode (Create Patches Without Coding)
-
-> **No programming experience required!** Simply describe your objective in natural language, and Morphy's AI agent analyzes the target APK, pinpoints hook targets, generates resilient Kotlin code, and compiles the ready-to-use `.mpp` bundle for **Morphe Manager**:
-
-```bash
-# 1. Instant one-line automated patch creation:
-morphy-creator auto app.apk --prompt "Remove all ads and banners" -o ./my_patches
-
-# 2. Or launch the step-by-step interactive wizard:
-morphy-creator wizard
-```
-
----
-
-### 🛠️ Advanced Developer Pipeline (Manual CLI)
-
-
-```bash
-# 1. Inspect an APK and extract its components (via Apktool)
-morphy-creator unpack /path/to/target.apk -o ./workspace
-
-# 2. Deep-scan native libraries and logic triggers (via REA)
-morphy-creator inspect ./workspace --symbols --native
-
-# 3. Synthesize a Morphe Kotlin patch (via Morphe-AI)
-morphy-creator synthesize ./workspace \
-    --type unlock \
-    --target-feature "subscription_verification" \
-    --output ./generated_patches
-
-# 4. Build into a distribution-ready .mpp bundle
-morphy-creator build ./generated_patches
-```
-
-
-### 📦 Split APK / Bundle Merger (.apkm, .xapk, .apks)
-
-Automatically extract and resolve split packages into a unified base APK for analysis:
-```bash
-morphy-creator merge /path/to/bundle.apkm -o ./merged_apk
-```
-
----
-
-### 🩺 Patch Verifier & Linter
-
-Lint synthesized Morphe Kotlin patches to ensure register safety, annotation validity, and fingerprint health:
-```bash
-morphy-creator verify ./generated_patches/MyPatch.kt
-```
-
----
-
-### 📖 Built-in Battle-Tested Recipes Catalog
-
-Explore pre-configured recipes for common patch objectives:
-```bash
-morphy-creator recipes
-```
-
-
----
-
-## 🎯 Capabilities vs. ⚠️ Technical Limitations
-
-For an exhaustive breakdown and edge-case mitigations, refer to [**`docs/LIMITATIONS.md`**](docs/LIMITATIONS.md).
-
-### ✅ What Morphy Patches Creator Can Do
-- **Multi-DEX & Split APK Ingestion**: Decompiles monolithic APKs, split APK sets (`APKM`, `APKS`, base + config splits), and extracts Dalvik bytecode via **Apktool**.
-- **Binary XML & Resource Resolution**: Fully decodes `AndroidManifest.xml` and maps `resources.arsc` table IDs to human-readable UI attributes.
-- **Deep Native Introspection**: Dissects `.so` C/C++ libraries (ARM64/x86), identifies JNI export functions, maps cross-references, and detects anti-tamper logic via **REA**.
-- **Resilient Opcode Fingerprinting**: Generates update-tolerant AST fingerprints that survive ProGuard, R8, and DexGuard renaming.
-- **Idiomatic Kotlin Patch Synthesis**: Translates analyzed targets into production-grade Morphe patch classes (`replaceMethod`, `replaceInstructions`, `Fingerprint`) via **Morphe-AI**.
-- **One-Click Patch Bundling**: Simulates patches with dry-run verification and compiles distribution `.mpp` archives.
-
-### ⚠️ What Morphy Patches Creator Cannot Do (Technical Boundaries)
-1. **Server-Side Authorization**: Patches operate exclusively on the local client. Features enforced by remote backend servers (e.g., server-verified subscriptions, remote database entitlements, cloud-side DRM token generation) cannot be granted via client bytecode modification.
-2. **Commercial Native Kernel Packers**: Targets armored with heavy commercial packers (*SecNeo, Tencent Legu, Bangcle, DexGuard O-LLVM*) that encrypt DEX files on disk require a memory dump (via dynamic dumping or Frida runtime) before Morphy can decompile them.
-3. **Hardware TEE / StrongBox Play Integrity**: Cryptographic hardware attestation executed inside the secure enclave (TEE/Keymint) cannot be bypassed with Dalvik bytecode patches; it requires system/kernel-level solutions (such as Zygisk modules).
-4. **Dynamically Loaded Cloud Payloads**: Bytecode fetched from the cloud at runtime cannot be analyzed purely statically and requires dynamic REA tracing during an active runtime session.
-
----
-
-## 📂 Project Structure
+## Project structure
 
 ```
 Morphy-Patches-Creator/
-├── .agents/skills/                 # Antigravity IDE native skill
-├── .cursor/rules/                  # Cursor IDE patch creation rules
-├── .github/                        # Copilot/Codex instructions & issue templates
-├── CLAUDE.md                       # Claude Code & Claude Desktop agent instructions
-├── .cursorrules                    # Cursor root workspace rules
-├── .windsurfrules                  # Windsurf Cascade agent rules
 ├── morphy_creator/
-│   ├── mcp_server.py               # Standard Model Context Protocol (MCP) server
-│   ├── doctor.py                   # Multi-client environment doctor (REA-style)
-│   ├── adapters/
-│   │   ├── apktool_adapter.py      # Bridge to Apktool decompilation & resource decoding
-│   │   ├── rea_adapter.py          # Bridge to REA multi-target native & binary analysis
-│   │   └── morphe_ai_adapter.py    # Bridge to Morphe-AI patch logic synthesis
+│   ├── cli.py                  # wizard + commands
+│   ├── mcp_server.py           # MCP server (6 tools)
+│   ├── doctor.py               # environment checks
+│   ├── config.py               # Apktool/Java paths
 │   ├── core/
-│   │   ├── pipeline.py             # Orchestrates the 4-phase patching workflow
-│   │   └── config.py               # Tool paths, options, and model configurations
+│   │   ├── dex.py              # dependency-free DEX parser (strings, calls, literals)
+│   │   ├── axml.py             # dependency-free binary AndroidManifest reader
+│   │   ├── apk.py              # APK container: package, SDK, packers, .so list
+│   │   ├── analysis.py         # scoring engine (camelCase tokens, evidence)
+│   │   ├── plan.py             # patch plan: naming, confidence, de-duplication
+│   │   ├── verifier.py         # API/structural check of generated Kotlin
+│   │   ├── agent.py            # PatchAgent.create: whole pipeline in one call
+│   │   ├── split_merger.py     # .apkm/.xapk/.apks handling
+│   │   └── subprocess_utils.py # Windows-safe launcher for .cmd/.bat tools
+│   ├── presets/objectives.py   # the goal catalogue (signals, strategies, limits)
 │   ├── synthesizer/
-│   │   ├── fingerprint_generator.py # Generates resilient Morphe AST fingerprints
-│   │   └── patch_template_engine.py# Emits clean Morphe Kotlin source code
-│   ├── templates/                  # Jinja2 templates for Kotlin Morphe patches
-│   └── cli.py                      # Interactive & headless CLI interface
+│   │   ├── kotlin.py           # real app.morphe.patcher code generation
+│   │   └── patch_writer.py     # template clone, Gradle build, honest fallback
+│   └── adapters/               # Apktool + JADX bridges (optional tools)
 ├── docs/
-│   ├── ARCHITECTURE.md             # Detailed engineering and component blueprint
-│   ├── CREDITS.md                  # Comprehensive attribution & upstream profiles
-│   ├── LEGAL.md                    # Legal framework, compliance & ethical boundaries
-│   ├── LIMITATIONS.md              # Deep breakdown of capabilities vs boundaries
-│   └── GETTING_STARTED.md          # Step-by-step developer tutorial
-├── tests/                          # Automated unit and integration tests
-├── pyproject.toml
-├── LICENSE
-└── README.md
+├── tests/
+└── pyproject.toml
 ```
 
----
-
-## ⚖️ Legal & Ethical Disclaimer
-
-> [!IMPORTANT]
-> **PLEASE READ CAREFULLY BEFORE USING THIS TOOLKIT**
-
-1. **Educational & Research Purpose**: Morphy Patches Creator is developed solely for educational, academic security research, software interoperability, and personal customization purposes.
-2. **Reverse Engineering for Interoperability**: Reverse engineering for interoperability is recognized and protected under applicable laws, including **17 U.S.C. § 1201 (DMCA Section 1201 Exemptions)** and the **EU Software Directive (2009/24/EC, Article 6)**.
-3. **No Circumvention of Access Controls**: This tool is not intended to bypass paid paywalls, conduct software piracy, defeat DRM, or infringe upon proprietary intellectual property. Users are solely responsible for ensuring their usage complies with all local, national, and international laws.
-4. **Third-Party Trademarks**: All app names, trademarks, logos, and brands referenced in examples or test cases belong to their respective owners. Their mention implies neither endorsement nor affiliation.
-5. **Upstream Intellectual Property**: Apktool, REA, and Morphe-AI are the intellectual property of their respective creators. Morphy Patches Creator acts as an integration and orchestration layer and does not claim ownership over any upstream technology.
+The analysis engine has **no third-party dependency**: DEX and AXML are parsed directly, which is why a 45 000-method APK is analysed in about 2 seconds and a 340 000-method one in about 17 seconds.
 
 ---
 
-## 🤝 Contributing
+## Development
 
-Contributions, issues, and feature requests are welcome!  
-Feel free to check out the [issues page](https://github.com/SatanMerde/Morphy-Patches-Creator/issues).
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests -q
+```
 
----
-
-## 💖 Support the Project
-
-If you appreciate **Morphy Patches Creator** and would like to support ongoing development, maintenance, and AI integrations, consider buying me a coffee on **Ko-fi** or joining the community:
-
-<p align="center">
-  <a href="https://ko-fi.com/satanmerde">
-    <img src="https://img.shields.io/badge/Ko--fi-Support_on_Ko--fi-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white" alt="Support on Ko-fi">
-  </a>
-  &nbsp;&nbsp;
-  <a href="https://discord.gg/pw9wNbDzMx">
-    <img src="https://img.shields.io/badge/Discord-Join_Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord Community">
-  </a>
-</p>
+The test suite covers the verifier (including rejection of the old ReVanced API), the Kotlin renderer, plan naming/confidence/de-duplication, camelCase token matching, the objective catalogue, split bundles and the writer, with no APK, JDK or network required.
 
 ---
 
-## 📜 License
+## Legal
 
-This project is licensed under the **Apache License 2.0** - see the [LICENSE](LICENSE) file for details.  
-Please also review the respective licenses of [Apktool](https://github.com/iBotPeaches/Apktool/blob/master/LICENSE.md), [REA](https://github.com/morluto/rea), and [Morphe-AI](https://github.com/Paresh-Maheshwari/morphe-ai).
+Morphy Patches Creator is provided for **personal customisation, interoperability research and education**. You are responsible for respecting the terms of service of the apps you modify and the laws of your country. Do not use it to redistribute paid content or to bypass protections you do not own.
+
+The tool integrates with, and generates code for, the [Morphe](https://github.com/MorpheApp) ecosystem. Apktool and JADX remain the property of their authors. See [docs/CREDITS.md](docs/CREDITS.md) and [docs/LEGAL.md](docs/LEGAL.md).
+
+---
+
+## Credits
+
+- [Morphe Patcher](https://github.com/MorpheApp/morphe-patcher) and [morphe-patches-template](https://github.com/MorpheApp/morphe-patches-template) — the patch API and build toolchain this project targets.
+- [Apktool](https://github.com/iBotPeaches/Apktool) by Connor Tumbleson & Ryszard Wiśniewski — optional decompilation.
+- [JADX](https://github.com/skylot/jadx) by @skylot — optional Java view.
+- [Rich](https://github.com/Textualize/rich) and [Click](https://click.palletsprojects.com/) — the terminal experience.
+
+Licensed under the Apache License 2.0. See [LICENSE](LICENSE).

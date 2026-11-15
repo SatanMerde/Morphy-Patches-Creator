@@ -19,7 +19,9 @@ Steps to reproduce the behavior:
 A clear and concise description of what you expected to happen.
 
 **Environment:**
-- OS: [e.g. Linux, Windows, macOS]
-- Python Version: [e.g. 3.11.0]
-- Java JDK Version: [e.g. 17.0.2]
-- Morphy Version: [e.g. 1.0.0]
+- OS: [e.g. Windows 11, Ubuntu 24.04, macOS 15]
+- Python Version: [e.g. 3.12.4]
+- Java JDK Version: [e.g. 17.0.12, or "not installed"]
+- Morphy Version: [e.g. 2.0.0]
+- Output of `morphy-creator doctor`: [paste the table]
+- Command used: [e.g. `morphy-creator create app.apk --for screenshots -y`]

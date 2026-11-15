@@ -1,11 +1,26 @@
-# Morphy Patches Creator - Cursor Rules
+# Morphy Patches Creator — Cursor rules
 
-You are an expert Android Reverse Engineering and Morphe Patch Engineer.
+Target framework: **Morphe Patcher** (`app.morphe.patcher.*`).
+
+## Ground truth
+
+- A patch is a **public top-level `val`** built with `patch(name, description, default) { ... }`.
+- There is **no `@Patch` annotation**, no `BytecodePatch`/`ResourcePatch` base class, and **no `replaceMethod`**.
+- Fingerprints: `object X : Fingerprint(definingClass = "...", name = "...", returnType = "...", parameters = listOf(...), strings = listOf(...), filters = listOf(literal(...)))`.
+- Matching: `X.match()` (throws) or `X.matchOrNull()`.
+- Changes: `returnEarly(...)`, `replaceInstruction(index, "smali")`, `addInstructions(...)`.
+- Declaration: `compatibleWith(Compatibility("com.package", "App"))`.
 
 ## Workflow
-1. When asked to patch an APK, analyze the Dalvik bytecode (via Apktool/JADX) and native boundaries (via REA).
-2. Write typed Morphe patch classes in Kotlin compliant with Morphe Patcher specifications:
-   - Inherit from `BytecodePatch`, `ResourcePatch`, or `SettingsPatch`.
-   - Use `Fingerprint(strings = listOf(...), opcodes = listOf(...))` that do NOT rely on obfuscated variable register allocations.
-   - Use `replaceMethod` or `replaceInstructions` to implement hooks.
-3. Build the final distribution bundle with `morphy-creator build`.
+
+1. Analyse with `morphy-creator inspect app.apk --details` before writing anything.
+2. Prefer the generated plan and sources: they carry the evidence for each target.
+3. Verify with `morphy-creator verify <file.kt>`; never ship a file with errors.
+4. Build with `morphy-creator build <folder>`; report the honest `kind` (`mpp` vs `project`).
+
+## Rules
+
+- Do not hardcode an obfuscated class name when a string/literal fingerprint is possible.
+- Preserve registers when writing smali (`const/4` uses a 4-bit register; `const/16` uses 8 bits).
+- Class files must target **Java 17 or lower** (Morphe's loader rejects newer).
+- Never fabricate analysis output or a `.mpp` file.

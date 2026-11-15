@@ -1,11 +1,14 @@
 ---
-description: Rules for generating resilient Android patches for the Morphe ecosystem
+description: Rules for generating Android patches for the Morphe ecosystem
 globs: **/*.kt, **/*.smali, **/*.apk
 ---
 
-# Morphy Patch Engineering Rules for Cursor
+# Morphy patch rules
 
-- **Framework**: Morphe Patcher (`app.morphe.patcher.*`).
-- **Resilience**: Never hardcode obfuscated class names (like `a.b.c`). Always use fuzzy `Fingerprint` matching opcodes and string constants.
-- **Safety**: Verify that register allocations (`v0`, `v1`, `p0`) are preserved or expanded appropriately in replacement bytecode.
-- **Testing**: Run `morphy-creator build` to ensure the synthesized patch compiles into a valid `.mpp` archive.
+- **Framework:** `app.morphe.patcher.*`. A patch is a public top-level `val x = patch(...)`; there is no `@Patch` annotation and no `replaceMethod`.
+- **Matching:** `Fingerprint(definingClass, name, returnType, parameters, strings, filters)` then `.match()`. Prefer at least two signals (name + strings, or class + literal).
+- **Changes:** `returnEarly(value)` for booleans/void, `replaceInstruction(index, "const/16 vN, 0x0")` for literals such as `FLAG_SECURE` (`0x2000`).
+- **Registers:** `const/4` encodes a 4-bit register, `const/16`/`const` an 8-bit one. Keep the register of the original instruction.
+- **Compatibility:** always emit `compatibleWith(Compatibility("<package>", "<AppName>"))`.
+- **Java level:** class files must target Java 17 or lower (Morphe's loader rejects newer).
+- **Verification:** run `morphy-creator verify <file.kt>` and only build with `morphy-creator build`; report `mpp` vs `project` honestly.

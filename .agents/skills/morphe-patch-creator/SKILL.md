@@ -1,28 +1,42 @@
 ---
 name: morphe-patch-creator
-description: Expert skill for autonomously reverse engineering Android APKs and synthesizing production-ready Kotlin patches for the Morphe ecosystem (.mpp).
+description: Create Morphe patches for Android apps from a plain-English goal, using real static analysis of the APK and the current app.morphe.patcher API.
 metadata:
-  version: "1.0.0"
+  version: "2.0.0"
 ---
 
-# Morphe Patch Creator Skill
+# Morphe Patch Creator
 
-Use this skill when tasked with reverse engineering an Android APK, identifying feature gates, creating resilient bytecode modifications, or compiling `.mpp` patch bundles for Morphe.
+Use this skill when the user wants a Morphe patch (`.mpp`) for an Android app, or asks what is patchable in an APK.
 
 ## Workflow
 
-1. **Ingest & Disassemble**:
-   Run `morphy-creator unpack <app.apk> -o ./workspace` to extract `AndroidManifest.xml`, decode resources, and disassemble Smali bytecode via Apktool.
-   Optionally run JADX decompilation for high-level Java viewing.
+1. **Find the right goal.**
+   `morphy-creator recipes` lists ids: `ads`, `premium`, `screenshots`, `root`, `emulator`, `tracking`, `updates`, `screenshot_watermark`; `custom` searches the user's own words.
 
-2. **Locate Target Logic**:
-   - Use Androguard or REA inspection to discover classes and methods associated with the requested feature (e.g. `isPremium`, `showAd`, `FLAG_SECURE`).
-   - Identify stable opcode sequences and string constants.
+2. **Analyse before generating.**
+   `morphy-creator inspect <app.apk> --details`
+   This writes nothing. Read the evidence per candidate. If nothing scores, say so; do not invent a target.
 
-3. **Synthesize Resilient Patch**:
-   - Create a typed Kotlin patch conforming to `BytecodePatch`.
-   - Never rely on obfuscated class names directly; bind them via `Fingerprint`.
-   - Replace or modify instructions cleanly with `replaceMethod` or `replaceInstructions`.
+3. **Create the patch.**
+   `morphy-creator create <app.apk> --for ads,premium -y -o <folder>`
+   or `morphy-creator auto <app.apk> --prompt "remove ads and screenshots"`.
 
-4. **Verify & Compile**:
-   Compile the bundle using `morphy-creator build ./patches -o ./build/patches.mpp`.
+4. **Check the generated source.**
+   `morphy-creator verify <file.kt>` — a score below 80 means a fragile fingerprint or missing `compatibleWith`.
+
+5. **Compile.**
+   `morphy-creator build <folder>`. Report the returned `kind`:
+   - `mpp` → installable bundle;
+   - `project` → sources plus the missing step (JDK 17+, Git, or a GitHub token with `read:packages`).
+
+## API facts to respect
+
+- A patch is a public top-level `val x = patch(name = "...", description = "...") { execute { ... } }`.
+- `@Patch`, `BytecodePatch`, `ResourcePatch`, `replaceMethod` **do not exist**. Anything using them will not compile.
+- Use `Fingerprint(...)` + `.match()`, `returnEarly(...)`, `replaceInstruction(index, "smali")`, `compatibleWith(Compatibility(...))`.
+- Class files must target Java 17 or lower.
+
+## Limits to mention to the user
+
+Server-verified purchases, hardware attestation, commercial packers, and runtime-downloaded code cannot be patched from the client. Never promise otherwise.

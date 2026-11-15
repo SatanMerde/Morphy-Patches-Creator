@@ -1,63 +1,60 @@
-# ⚠️ Capabilities & Technical Limitations
+# Capabilities and limitations
 
-Understanding both the capabilities and the technical boundaries of **Morphy Patches Creator** ensures realistic expectations and efficient patch development.
+## What it does well
 
----
+| Capability | How it is implemented |
+|---|---|
+| Reads any APK / `.apkm` / `.xapk` / `.apks` | `zipfile` + hand-written AXML/DEX readers |
+| Package, version, SDK, permissions, activities | binary `AndroidManifest.xml` decoded natively |
+| Detects packers and anti-tamper markers | class/lib heuristics reported, never guessed around |
+| Finds feature gates | tokenised method names + SDK calls + literal sites |
+| Handles multi-DEX apps | every `classesN.dex` is scanned once |
+| Survives obfuscation | text constants, SDK calls and literals work without names |
+| Writes current-API Kotlin | `patch(...)`, `Fingerprint`, `returnEarly`, `replaceInstruction` |
+| Rejects stale API | verifier fails on `@Patch` / `replaceMethod` |
+| Compiles a real `.mpp` | official `buildAndroid` (D8) through the template project |
+| Explains itself | `REPORT.txt` with reasons, confidence and manual test steps |
 
-## 🎯 What Morphy Patches Creator Can Do (Capabilities)
+## What it cannot do
 
-### 1. Ingestion & Multi-DEX Reconstitution (via Apktool)
-- **Universal APK Decoding**: Unpacks monolithic APKs as well as modern split bundle sets (APKM, APKS, base + dynamic feature modules).
-- **Binary XML Reconstitution**: Converts obfuscated binary `AndroidManifest.xml` into human-readable XML with exact namespace preservation.
-- **Resource Table ID Resolution**: Resolves internal IDs in `resources.arsc` (strings, layouts, drawables, colors) to locate UI elements, preference toggles, and feature gate names.
-- **Baksmali Disassembly**: Emits clean Smali bytecode and AST structures across all `classes.dex`, `classes2.dex`, ..., `classesN.dex`.
+### 1. Server-side entitlements
+A patch changes local decisions only. If the backend verifies a purchase, signs a receipt, or serves media only to entitled accounts, the client cannot grant access.
 
-### 2. Deep Native & Binary Introspection (via REA)
-- **Shared Object (.so) Inspection**: Analyzes native C/C++ libraries (ARM64-v8a, ARMeabi-v7a, x86_64) embedded inside the target app.
-- **JNI Export Resolution**: Maps native methods declared in Java/Kotlin (`native fun ...`) to their C/C++ implementations (`Java_com_package_class_method`).
-- **Call-Graph & Cross-Reference Mapping**: Traces caller-callee chains to uncover hidden entitlement checks, cryptographic verification routines, and checksum validation routines.
-- **Il2Cpp Metadata Extraction**: Resolves method names, field offsets, and classes for Unity-based Android applications.
+- Patchable: `if (user.isPremium) showFeature()`
+- Not patchable: the server refuses the request until Google Play confirms a valid token
 
-### 3. Cognitive Patch Synthesis (via Morphe-AI)
-- **Resilient Fingerprinting**: Generates opcode-sequence and string matchers that survive ProGuard, R8, and DexGuard renaming updates across app releases.
-- **Idiomatic Kotlin Patch Code**: Automatically produces typed, idiomatic Morphe patch definitions inheriting from `BytecodePatch`, `ResourcePatch`, or `SettingsPatch`.
-- **Instruction Replacements**: Creates clean `replaceMethod`, `replaceInstructions`, or register override blocks targeting Morphe's patching engine.
-- **Automated Bundle Packaging**: Coordinates Gradle compilation into production-ready `.mpp` patch bundles.
+### 2. Hardware attestation
+Play Integrity strong verdict, KeyMint/StrongBox and TEE-backed checks execute below the app. They need system-level solutions, not a bytecode patch. The `root` and `emulator` goals explicitly say so in their limits.
 
----
+### 3. Commercial packers
+Legu, Jiagu, SecNeo, Bangcle and DexGuard-class protectors encrypt DEX files and decrypt them in memory. The tool detects and reports the protection; it does not fabricate targets. An unpacked dump is required first.
 
-## ⚠️ What Morphy Patches Creator Cannot Do (Technical Boundaries)
+### 4. Code loaded at runtime
+Bytecode downloaded after launch is invisible to static analysis. Only a dynamic trace (Frida, runtime dumping) can reach it.
 
-### 1. Server-Side Entitlement & Cloud Verification
-- **The Boundary**: Morphy patches operate entirely **client-side** (on the local Android device). If a feature, content stream, or subscription is verified, decrypted, or served directly by an authoritative remote backend server, modifying client-side bytecode will not grant access.
-- **Example**:
-  - ✅ **Client-side UI Gate**: `if (user.isPremium) showFeature()` -> Fully patchable.
-  - ❌ **Server-side Token Verification**: Server requires a cryptographically signed receipt from Google Play's backend before returning media files -> Cannot be bypassed on the client.
+### 5. Native-only decisions
+A decision made entirely inside a `.so` is out of scope. The tool lists native libraries and flags suspicious ones, but Morphe patches operate on Dalvik bytecode.
 
-### 2. Heavy Commercial Packers & Virtual Machine Protectors (VMP)
-- **The Boundary**: Apps protected with kernel-level or aggressive commercial packing solutions (e.g. *SecNeo, Bangcle, Tencent Legu, DexGuard Enterprise O-LLVM*) encrypt the Dex files on disk and decrypt them only in memory at runtime.
-- **Mitigation**: Morphy Patches Creator requires unencrypted Dex bytecode. For packed applications, developers must first obtain an unpacked memory dump (e.g., via dynamic runtime dumping tools or Frida hooks) before running Morphy's analysis pipeline.
+### 6. Fragile fingerprints
+If a method's name, class, text and literals all change between versions, the fingerprint stops matching. The verifier warns when a Fingerprint relies on a single signal, but no static tool can guarantee an update-proof match.
 
-### 3. Hardware-Backed Play Integrity & StrongBox Attestation
-- **The Boundary**: Google Play Integrity checks utilizing hardware-backed security (TEE, SE, or StrongBox KeyMint) cannot be satisfied solely through Dalvik/Smali bytecode patches, as verification occurs at the operating system cryptographic boundary.
-- **Mitigation**: Hardware attestation bypasses require system-level modifications (such as Zygisk / Magisk modules or patched kernels) rather than standalone application patches.
+### 7. Universal goals
+"Remove ads" covers the common client-side pattern. Ad SDKs that decide server-side, or that stitch video server-side, will keep showing ads. Some apps route analytics through a shared method that also carries crash reports; disabling it may lose crash data — the report says when that risk applies.
 
-### 4. Code Downloaded Dynamically at Runtime (Dynamic Code Loading)
-- **The Boundary**: Some applications download dynamic payloads, feature plugins, or scripts over the network during runtime. Morphy's static analysis inspects the APK package as delivered; dynamically fetched payloads require dynamic memory tracing via REA during an active session.
+### 8. Decisions hidden inside a bundled SDK
+Some apps delegate purchases or analytics to an SDK and keep no local check of their own. The only remaining match is then inside the SDK. The tool reports **"SDK found, no hook"** rather than suggesting an internal method: patching SDK internals is unreliable and breaks on every SDK update. `--details` names the SDK so the reason is visible.
 
----
+## Summary
 
-## 📊 Summary Matrix
-
-| Feature / Scenario | Supported? | Engine Responsible | Notes |
-| :--- | :---: | :--- | :--- |
-| Split APKs (APKM / APKS) | ✅ **Yes** | Apktool Bridge | Merges and decompiles unified project |
-| Resource & String Overrides | ✅ **Yes** | Apktool + Morphe | Replaces layouts, strings, and assets |
-| Obfuscated Smali (R8/ProGuard) | ✅ **Yes** | Morphe-AI | Generates fuzzy opcode fingerprints |
-| Native JNI Boundary Tracing | ✅ **Yes** | REA Engine | Maps `.so` symbols to Java methods |
-| Unity / Il2Cpp Logic Inspection | ✅ **Yes** | REA Engine | Analyzes `global-metadata.dat` offsets |
-| Local Paywall / Trial Expiry | ✅ **Yes** | Morphe-AI Synthesizer | Bypasses local boolean verifications |
-| Dry-Run AST Patch Validation | ✅ **Yes** | Pipeline Core | Simulates patch execution before build |
-| Server-Side API Enforcement | ❌ **No** | N/A | Requires authoritative backend response |
-| Commercial Kernel Packers | ⚠️ **Partial** | REA Runtime | Requires dynamic dump before ingestion |
-| Hardware TEE Attestation | ❌ **No** | N/A | Requires OS/Kernel-level modules |
+| Scenario | Supported | Notes |
+|---|---|---|
+| Split APKs | Yes | base APK extracted or analysed directly |
+| Local paywall / trial | Yes | boolean/local checks |
+| Local root / emulator checks | Yes | hardware-backed checks excluded |
+| `FLAG_SECURE` screenshots | Yes | literal `0x2000` removed |
+| Analytics SDK entry points | Yes | may include shared crash logging |
+| Forced-update prompts | Yes | server compatibility blocks excluded |
+| Watermarks drawn by the app | Yes | native/OS overlays excluded |
+| Server-side enforcement | No | nothing to patch locally |
+| Packed DEX | No | needs an unpacked dump |
+| Hardware attestation | No | needs OS/kernel level |

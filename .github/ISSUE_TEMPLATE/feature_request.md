@@ -16,7 +16,8 @@ A clear and concise description of what you want to happen.
 A clear and concise description of any alternative solutions or features you've considered.
 
 **Which component would this touch?**
-- [ ] Apktool Adapter (Ingestion & Decoupling)
-- [ ] REA Engine (Binary & Native Inspection)
-- [ ] Morphe-AI (Fingerprint & Patch Synthesis)
-- [ ] CLI / Pipeline Core
+- [ ] Analysis engine (`core/analysis.py`, `core/dex.py`)
+- [ ] Goal catalogue (`presets/objectives.py`)
+- [ ] Kotlin generator / verifier (`synthesizer/`, `core/verifier.py`)
+- [ ] Bundle build (`synthesizer/patch_writer.py`)
+- [ ] CLI / wizard / MCP server

@@ -1,42 +1,33 @@
-# 🏛️ Credits & Upstream Tribute
+# Credits
 
-Morphy Patches Creator was conceived as a bridge uniting the finest engineering achievements in Android reverse engineering and agentic bytecode manipulation. We extend our deepest respect, tribute, and gratitude to the upstream authors whose work made this toolkit possible.
+Morphy Patches Creator is an independent tool. It targets the Morphe ecosystem and optionally uses two excellent open-source decompilers.
 
----
+## Morphe
 
-## 1. Apktool
-* **Repository**: [https://github.com/iBotPeaches/Apktool](https://github.com/iBotPeaches/Apktool)
-* **Creators & Maintainers**: 
-  - **Connor Tumbleson** ([@iBotPeaches](https://github.com/iBotPeaches))
-  - **Ryszard Wiśniewski** ([@brutall](https://github.com/brutall))
-* **License**: Apache License 2.0
-* **Tribute**:
-  Apktool has been the gold standard of Android decompilation and resource decoding for well over a decade. Without its rock-solid extraction of `AndroidManifest.xml`, exact resource table translation, and baksmali integration, analyzing binary Android artifacts would be prohibitively difficult. Morphy Patches Creator relies on Apktool for robust, reliable APK ingestion and structure extraction.
+- [MorpheApp/morphe-patcher](https://github.com/MorpheApp/morphe-patcher) — the patch API (`app.morphe.patcher`), fingerprinting, bundle loader.
+- [MorpheApp/morphe-patches-template](https://github.com/MorpheApp/morphe-patches-template) — the project skeleton cloned by `PatchWriter`.
+- [MorpheApp/morphe-patches-gradle-plugin](https://github.com/MorpheApp/morphe-patches-gradle-plugin) — `buildAndroid`, D8 packaging, manifest and signing.
+- [MorpheApp/morphe-manager](https://github.com/MorpheApp/morphe-manager) — the on-device installer.
 
----
+Generated code follows their current conventions: a public top-level `val ... = patch(...)`, `Fingerprint(...).match()`, `returnEarly(...)`, `replaceInstruction(...)` and `compatibleWith(Compatibility(...))`. There is no `@Patch` annotation and no `replaceMethod` in this API.
 
-## 2. REA (Reverse Engineer Anything)
-* **Repository**: [https://github.com/morluto/rea](https://github.com/morluto/rea)
-* **Creator & Maintainer**: 
-  - **@morluto** ([@morluto](https://github.com/morluto))
-* **License**: Open Source
-* **Tribute**:
-  REA is an extraordinary reverse engineering platform designed for deep, multi-target inspection across native binaries, managed runtimes, web bundles, and firmware. In the Android domain, REA provides Morphy with unparalleled visibility into native libraries (`.so`), ELF symbol tables, xref tracing, and static/runtime correlation that ordinary Dalvik decompilers cannot touch.
+## Apktool
 
----
+- Author: Connor Tumbleson ([@iBotPeaches](https://github.com/iBotPeaches)), original author Ryszard Wiśniewski ([@brutall](https://github.com/brutall))
+- Repository: <https://github.com/iBotPeaches/Apktool>
+- License: Apache 2.0
+- Used for: optional `unpack` command (manifest, resources, smali). The analysis itself does not need it.
 
-## 3. Morphe-AI
-* **Repository**: [https://github.com/Paresh-Maheshwari/morphe-ai](https://github.com/Paresh-Maheshwari/morphe-ai)
-* **Creator & Maintainer**: 
-  - **Paresh Maheshwari** ([@Paresh-Maheshwari](https://github.com/Paresh-Maheshwari))
-* **License**: Open Source
-* **Tribute**:
-  Morphe-AI pioneered the integration of AI-assisted bytecode reasoning and patch synthesis within the modern Morphe ecosystem. By translating raw decompiled control flows into idiomatic, version-resilient Morphe Kotlin patch classes, Morphe-AI bridges the gap between raw reverse engineering findings and maintainable, production-ready patch code.
+## JADX
 
----
+- Author: [@skylot](https://github.com/skylot)
+- Repository: <https://github.com/skylot/jadx>
+- License: Apache 2.0
+- Used for: optional Java source view through the MCP tool `morphe_decompile_java`.
 
-## 4. The Morphe Ecosystem
-* **Project**: Morphe App / Morphe Patcher
-* **Repository**: [https://github.com/MorpheApp](https://github.com/MorpheApp)
-* **Tribute**:
-  To the entire Morphe community for building a modern, modular, and performant patching engine for Android that empowers users and researchers worldwide.
+## Python libraries
+
+- [Click](https://click.palletsprojects.com/) — command line framework.
+- [Rich](https://github.com/Textualize/rich) — terminal tables, panels and colours.
+
+The DEX and AXML parsers are original code written for this project; no Android SDK, Androguard or dexlib2 is required at analysis time.
