@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Iterable, List, Optional
 
 from morphy_creator.core.plan import PatchPlan
+from morphy_creator.config import android_sdk_dir
 from morphy_creator.synthesizer import kotlin
 
 TEMPLATE_URL = "https://github.com/MorpheApp/morphe-patches-template.git"
@@ -31,7 +32,6 @@ TEMPLATE_PATCH_DIR = Path("patches") / "src" / "main" / "kotlin"
 MAX_BUILD_ATTEMPTS = 3
 _KNOWN_API_IMPORTS = {
     "Fingerprint": "app.morphe.patcher.Fingerprint",
-    "match": "app.morphe.patcher.match",
     "literal": "app.morphe.patcher.literal",
     "methodCall": "app.morphe.patcher.methodCall",
     "instructionMatches": "app.morphe.patcher.instructionMatches",
@@ -104,6 +104,10 @@ class PatchWriter:
         if not copied:
             return self._project_only(dist, files, "Could not copy the patch sources into the project.")
 
+        sdk = _android_sdk_dir()
+        if sdk is not None:
+            _write_local_properties(project, sdk)
+
         missing = _missing_build_requirements(project)
         if missing:
             return self._project_only(dist, files, " ".join(missing))
@@ -160,28 +164,46 @@ class PatchWriter:
                 zf.write(file, Path("patch-sources") / relative)
 
         repairs = list(repairs or [])
+        lowered_reason = reason.lower()
         auth_problem = any(
-            marker in reason.lower()
+            marker in lowered_reason
             for marker in (
                 "401", "403", "unauthorized", "forbidden", "read:packages",
                 "registry token", "registry credentials", "resolve plugin artifact",
             )
         )
-        if auth_problem:
+        sdk_problem = "sdk location" in lowered_reason or "android sdk" in lowered_reason
+        java_problem = "java 17" in lowered_reason or "jdk" in lowered_reason
+
+        if sdk_problem:
+            next_steps = [
+                "Your patch code is ready. Only the Android SDK is missing for the D8 step.",
+                "1. Install Android Studio (it ships the SDK), or the command-line tools.",
+                "2. Make sure the SDK contains 'platform-tools' and at least one 'platforms/android-XX'.",
+                "3. Set ANDROID_HOME to that folder, or let the tool find %LOCALAPPDATA%\\Android\\Sdk automatically.",
+                "4. Run: morphy-creator build <this folder>",
+            ]
+        elif auth_problem:
             next_steps = [
                 "Your patch code is ready. Only the GitHub package token is blocking the build.",
-                "1. Open https://github.com/settings/tokens and replace the current token.",
-                "2. When creating it, tick the 'read:packages' scope (nothing else is needed).",
-                "3. In %USERPROFILE%\\.gradle\\gradle.properties set: gpr.user=<your GitHub username> and gpr.key=<new token>.",
+                "1. Run: gh auth refresh -h github.com -s read:packages (or create a classic token with that scope).",
+                "2. Put the resulting token in %USERPROFILE%\\.gradle\\gradle.properties as gpr.key, with gpr.user=<your GitHub username>.",
+                "3. Run: morphy-creator doctor to confirm the registry answers.",
                 "4. Run: morphy-creator build <this folder>",
+            ]
+        elif java_problem:
+            next_steps = [
+                "Your patch code is ready. The JDK is the missing piece.",
+                "1. Install a JDK 17 or newer (Temurin is fine).",
+                "2. Make sure 'java -version' works in a new terminal.",
+                "3. Run: morphy-creator build <this folder>",
             ]
         else:
             next_steps = [
-                "Your patch code is ready, but it still has to be compiled into a .mpp bundle.",
-                "1. Install a JDK 17 or newer (already present here if 'morphy-creator doctor' passes).",
-                "2. Create a GitHub token with the 'read:packages' permission.",
-                "3. Add it to %USERPROFILE%\\.gradle\\gradle.properties as: gpr.user=<github username> and gpr.key=<token>",
-                "4. Run: morphy-creator build <this folder>",
+                "Your patch code is ready, but the Gradle build did not finish.",
+                "The message above names the failing step; the full log is in REPORT.txt.",
+                "1. Run: morphy-creator doctor to check Java, Git, SDK and the registry token.",
+                "2. Run: morphy-creator build <this folder>",
             ]
         message = reason
         if repairs:
@@ -317,6 +339,32 @@ def _has_registry_credentials() -> bool:
     return _gradle_properties_key()
 
 
+def _android_sdk_dir() -> Optional[Path]:
+    """Thin wrapper so the writer, the doctor and tests share one implementation."""
+    return android_sdk_dir()
+
+
+def _write_local_properties(project: Path, sdk: Path) -> bool:
+    """Points Gradle at the SDK. Forward slashes keep the .properties valid."""
+    target = project / "local.properties"
+    escaped = sdk.as_posix()
+    try:
+        target.write_text(f"sdk.dir={escaped}\n", encoding="utf-8")
+        return True
+    except OSError:
+        return False
+
+
+def _build_environment() -> dict:
+    """Environment for Gradle with the detected SDK exported."""
+    env = dict(os.environ)
+    sdk = _android_sdk_dir()
+    if sdk is not None:
+        env.setdefault("ANDROID_HOME", str(sdk))
+        env.setdefault("ANDROID_SDK_ROOT", str(sdk))
+    return env
+
+
 def _missing_build_requirements(project: Path) -> List[str]:
     missing: List[str] = []
     if not shutil.which("java"):
@@ -327,6 +375,11 @@ def _missing_build_requirements(project: Path) -> List[str]:
     if not _has_registry_credentials():
         missing.append(
             "The Morphe package registry needs a GitHub token (see the setup steps)."
+        )
+    if _android_sdk_dir() is None:
+        missing.append(
+            "The Android SDK was not found (D8 needs it). Install Android Studio or "
+            "the command-line tools, then set ANDROID_HOME."
         )
     return missing
 
@@ -359,6 +412,7 @@ def _run_gradle(project: Path) -> tuple:
             text=True,
             timeout=1800,
             shell=use_shell,
+            env=_build_environment(),
         )
     except subprocess.TimeoutExpired:
         return False, "The build took longer than 30 minutes and was stopped."
@@ -422,6 +476,13 @@ def _gradle_error_tail(stdout: str, stderr: str, limit: int = 24) -> str:
 def _gradle_failure_hint(text: str) -> str:
     """Turns the most common Gradle failures into one actionable sentence."""
     lowered = text.lower()
+    if "sdk location not found" in lowered or "android sdk" in lowered:
+        return (
+            "Gradle could not find the Android SDK, which the D8 step needs. "
+            "Install Android Studio (or the command-line tools) and set "
+            "ANDROID_HOME to that folder; the tool writes local.properties "
+            "automatically once it can see the SDK."
+        )
     if "401" in text or "unauthorized" in lowered or "bad credentials" in lowered:
         return (
             "GitHub rejected the package-registry token (HTTP 401). The token "

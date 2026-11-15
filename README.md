@@ -164,16 +164,26 @@ morphy-output/
 A Morphe `.mpp` is a JAR that contains **compiled** patch classes plus a `classes.dex` produced by D8. Producing it requires the official Morphe Gradle toolchain:
 
 1. **JDK 17 or newer** on `PATH`
-2. **Git** (to fetch `MorpheApp/morphe-patches-template`)
-3. **A GitHub token with `read:packages`**, because Morphe publishes its Gradle plugin and patcher in a private GitHub Packages registry
+2. **The Android SDK** (Android Studio's default location is detected automatically; otherwise set `ANDROID_HOME`) for the D8 step
+3. **Git** (to fetch `MorpheApp/morphe-patches-template`)
+4. **A GitHub token with `read:packages`**, because Morphe publishes its Gradle plugin and patcher in a private GitHub Packages registry
 
-Add the token once:
+If you already use the GitHub CLI, the token takes two commands (a fine-grained token cannot read another organisation's packages, so the classic scope is what matters):
+
+```powershell
+gh auth refresh -h github.com -s read:packages
+gh auth token   # paste into gpr.key
+```
+
+Otherwise add a classic token once:
 
 ```properties
 # %USERPROFILE%\.gradle\gradle.properties
 gpr.user=your-github-username
 gpr.key=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
+
+`morphy-creator doctor` reads the scopes of the configured token and names the missing one, so a 401 stops being a guessing game.
 
 Or set the `GITHUB_TOKEN` environment variable. Then:
 
@@ -202,7 +212,6 @@ package app.morphe.patches.screenshots
 
 import app.morphe.patcher.Fingerprint
 import app.morphe.patcher.literal
-import app.morphe.patcher.match
 import app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction
 import app.morphe.patcher.patch.Compatibility
 import app.morphe.patcher.patch.patch

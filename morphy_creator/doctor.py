@@ -181,6 +181,22 @@ class MorphyDoctor:
         table.add_row("JADX", "Java source view (optional)", _status(bool(jadx), optional=True),
                       jadx or "not found - not required")
 
+        from morphy_creator.config import android_sdk_dir
+
+        sdk = android_sdk_dir()
+        table.add_row(
+            "Android SDK",
+            "the D8 step of the .mpp build",
+            _status(bool(sdk)),
+            str(sdk) if sdk else "not found - set ANDROID_HOME",
+        )
+        if not sdk:
+            missing.append(
+                "Install the Android SDK (Android Studio or the command-line tools): "
+                "the D8 step of ':patches:buildAndroid' needs it. Android Studio's "
+                "default location is detected automatically."
+            )
+
         token_ok, token_details, token_blocking = _registry_check()
         if token_ok:
             token_status = "[green]OK[/green]"

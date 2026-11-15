@@ -228,7 +228,6 @@ def render(plan: PatchPlan) -> str:
     """Renders one complete Kotlin patch file."""
     val_name = _val_name(plan)
     fingerprint_names = _fingerprint_names(plan)
-    uses_match = True
     uses_replace = any(step.strategy == STRATEGY_DROP_FLAG and step.target.literal_sites
                        for step in plan.steps)
     uses_literal = uses_replace
@@ -270,8 +269,6 @@ def render(plan: PatchPlan) -> str:
         imports.append("import app.morphe.patcher.literal")
     if uses_method_call:
         imports.append("import app.morphe.patcher.methodCall")
-    if uses_match:
-        imports.append("import app.morphe.patcher.match")
     if uses_replace:
         imports.append("import app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction")
         imports.append("import app.morphe.patcher.instructionMatches")

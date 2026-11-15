@@ -28,7 +28,8 @@ APK
  │
  └─ synthesizer/patch_writer.py
           ├─ copies sources into MorpheApp/morphe-patches-template
-          ├─ runs :patches:buildAndroid (D8) when Java + Git + registry token exist
+          ├─ finds the Android SDK (ANDROID_HOME or Android Studio's default) and writes local.properties
+          ├─ runs :patches:buildAndroid (D8) when Java + Git + SDK + registry token exist
           └─ otherwise returns dist/morphy-project.zip with setup steps
 ```
 
@@ -116,4 +117,6 @@ The verifier and the writer share one rule: never produce something that looks i
 
 - `@Patch` and `replaceMethod` do not exist in the current Morphe API, so the verifier treats them as errors.
 - A `.mpp` without `classes.dex` is rejected by Morphe Manager, so the writer only returns `kind="mpp"` after a successful `buildAndroid`, and otherwise returns `kind="project"` with explicit next steps.
+- The D8 step needs the Android SDK, which is not a Python dependency. The writer looks for it in `ANDROID_HOME`, `ANDROID_SDK_ROOT`, Android Studio's default folder and a few conventional paths, writes `local.properties` and exports the variable to Gradle. When none is found it says so before starting a two-minute build.
+- The next steps in the fallback are derived from the actual failure (missing SDK, JDK, token, or a compile error), so the panel never blames the token when the SDK is the problem.
 - When Kotlin reports a **missing import** for a symbol the synthesizer itself emits, the writer adds that exact import and retries (up to three attempts). It never invents an API or edits patch logic, and the automatic change is printed and written to `REPORT.txt`.

@@ -22,11 +22,12 @@ Requirements: **Python 3.10+**. Optional, only for the features that use them:
 | Tool | Needed for | Install |
 |---|---|---|
 | JDK 17+ | compiling a real `.mpp` | [Adoptium Temurin](https://adoptium.net/) |
+| Android SDK | the D8 step of the `.mpp` build | [Android Studio](https://developer.android.com/studio) or the command-line tools |
 | Git | downloading the Morphe project template | [git-scm.com](https://git-scm.com/) |
 | Apktool | `morphy-creator unpack` | [Apktool](https://github.com/iBotPeaches/Apktool) |
 | JADX | `morphy-creator unpack` / Java view | [JADX](https://github.com/skylot/jadx) |
 
-Run `morphy-creator doctor` to see what is missing.
+Run `morphy-creator doctor` to see what is missing. The SDK is found automatically when it sits in Android Studio's default folder; otherwise set `ANDROID_HOME`. The writer then fills in `local.properties` for you.
 
 ## 2. First patch
 
@@ -52,15 +53,29 @@ morphy-creator build .\morphy-output
 
 The first run downloads Gradle and the Morphe plugin, so it takes several minutes. Later runs reuse the cache.
 
-If the token is missing, create one at
-`GitHub → Settings → Developer settings → Personal access tokens` with the
-**`read:packages`** scope, then add:
+The token needs the **`read:packages`** scope on `github.com` (it is used to read
+the MorpheApp packages, which belong to another organisation, so a fine-grained
+token cannot work).
+
+The quickest route if you already use the GitHub CLI:
+
+```powershell
+gh auth refresh -h github.com -s read:packages
+gh auth token   # copy this value into gpr.key below
+```
+
+Or create a classic token at
+`GitHub → Settings → Developer settings → Personal access tokens` with
+**`read:packages`**, then add:
 
 ```properties
 # %USERPROFILE%\.gradle\gradle.properties
 gpr.user=your-github-username
 gpr.key=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
+
+`morphy-creator doctor` reads the scopes of the configured token and tells you
+which one is missing, so you do not have to guess why Gradle answers 404/401.
 
 ## 4. Install on the phone
 

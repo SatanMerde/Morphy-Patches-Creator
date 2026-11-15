@@ -64,10 +64,15 @@ from morphy_creator.presets.objectives import (
 from morphy_creator.synthesizer import kotlin
 from morphy_creator.synthesizer.patch_writer import (
     PatchWriter,
+    _android_sdk_dir,
+    _build_environment,
     _gradle_error_tail,
+    _gradle_failure_hint,
     _missing_api_symbols,
     _repair_missing_imports,
+    _write_local_properties,
 )
+import morphy_creator.synthesizer.patch_writer as patch_writer_module
 
 
 # ---------------------------------------------------------------------------
@@ -241,7 +246,6 @@ def test_verifier_reports_weak_fingerprint():
     source = (
         "package app.morphe.patches.test\n"
         "import app.morphe.patcher.Fingerprint\n"
-        "import app.morphe.patcher.match\n"
         "import app.morphe.patcher.util.returnEarly\n"
         "val testPatch = patch(name = \"Test\") {\n"
         "    execute { Fp.match().method.returnEarly(false) }\n"
@@ -266,7 +270,9 @@ def test_kotlin_render_uses_current_morphe_api():
     assert "val unlockPremiumPaidFeaturesPatch = patch(" in source
     assert "@Patch" not in source
     assert "replaceMethod" not in source
-    assert "import app.morphe.patcher.match" in source
+    # ``match()`` is a member of Fingerprint; importing app.morphe.patcher.match
+    # made the Kotlin compiler fail with "Unresolved reference 'match'".
+    assert "import app.morphe.patcher.match" not in source
     assert "returnEarly(true)" in source
     assert "Fingerprint(" in source
     assert 'definingClass = "Lcom/example/billing/BillingManager;"' in source
@@ -900,6 +906,46 @@ def test_repair_missing_imports_ignores_unknown_symbols():
         file.write_text("package x\n\nval y = definitelyNotMorpheApi\n", encoding="utf-8")
         assert _repair_missing_imports([file], log) == []
         assert "definitelyNotMorpheApi" in file.read_text(encoding="utf-8")
+
+
+def test_gradle_hint_explains_missing_android_sdk():
+    hint = _gradle_failure_hint(
+        "Caused by: com.android.builder.errors.EvalIssueException: "
+        "SDK location not found. Define a valid SDK location with an "
+        "ANDROID_HOME environment variable."
+    )
+    assert "Android SDK" in hint
+    assert "ANDROID_HOME" in hint
+
+
+def test_write_local_properties_uses_forward_slashes():
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        sdk = Path(r"C:\Users\me\AppData\Local\Android\Sdk")
+        assert _write_local_properties(Path(tmp_dir), sdk) is True
+        text = (Path(tmp_dir) / "local.properties").read_text(encoding="utf-8")
+        assert text.strip() == "sdk.dir=C:/Users/me/AppData/Local/Android/Sdk"
+
+
+def test_build_environment_exports_detected_sdk(monkeypatch):
+    monkeypatch.delenv("ANDROID_HOME", raising=False)
+    monkeypatch.delenv("ANDROID_SDK_ROOT", raising=False)
+    monkeypatch.setattr(patch_writer_module, "_android_sdk_dir", lambda: Path(r"C:\Sdk"))
+    env = _build_environment()
+    assert env["ANDROID_HOME"] == r"C:\Sdk"
+    assert env["ANDROID_SDK_ROOT"] == r"C:\Sdk"
+
+
+def test_android_sdk_detection_requires_platform_tools(monkeypatch, tmp_path):
+    # An empty folder must not be mistaken for an SDK.
+    monkeypatch.setenv("ANDROID_HOME", str(tmp_path))
+    monkeypatch.delenv("ANDROID_SDK_ROOT", raising=False)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "home"))
+    (tmp_path / "home").mkdir(exist_ok=True)
+    assert _android_sdk_dir() is None
+
+    (tmp_path / "platform-tools").mkdir()
+    (tmp_path / "platforms").mkdir()
+    assert _android_sdk_dir() == tmp_path
 
 
 def test_run_gradle_launches_windows_wrapper():

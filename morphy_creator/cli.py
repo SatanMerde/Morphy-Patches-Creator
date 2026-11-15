@@ -689,7 +689,12 @@ def build(patches_dir: str, output: str) -> None:
     from morphy_creator.synthesizer.patch_writer import PatchWriter
 
     root = Path(patches_dir)
-    files = sorted(root.glob("**/*.kt"))
+    files = sorted(
+        path for path in root.glob("**/*.kt")
+        # The cloned Gradle project contains its own Kotlin sources; copying
+        # those back into the patch module would corrupt the build.
+        if "project" not in path.relative_to(root).parts[:1]
+    )
     if not files:
         _friendly_error("No .kt patch file in this folder.", "Run the wizard first.")
         return
