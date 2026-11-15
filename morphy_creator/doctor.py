@@ -71,6 +71,30 @@ def _registry_credentials() -> Tuple[str, str]:
     return user, key
 
 
+def _token_scopes(user: str, key: str) -> Optional[List[str]]:
+    """Scopes reported by GitHub for this token, or ``None`` if unreadable.
+
+    A fine-grained token sends no ``x-oauth-scopes`` header at all, so ``None``
+    means "cannot tell", never "no scopes".
+    """
+    token = base64.b64encode(f"{user}:{key}".encode()).decode()
+    request = urllib.request.Request(
+        "https://api.github.com/user",
+        headers={
+            "Authorization": f"Basic {token}",
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "morphy-creator-doctor",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            header = response.headers.get("x-oauth-scopes") or ""
+    except Exception:  # noqa: BLE001 - diagnostic only
+        return None
+    scopes = [part.strip() for part in header.split(",") if part.strip()]
+    return scopes or None
+
+
 def _registry_check() -> Tuple[bool, str, bool]:
     """Returns ``(ok, description, blocking)``.
 
@@ -99,7 +123,21 @@ def _registry_check() -> Tuple[bool, str, bool]:
             return False, f"unexpected HTTP {response.status}", False
     except urllib.error.HTTPError as exc:
         if exc.code in (401, 403):
-            return False, f"rejected (HTTP {exc.code}): expired or missing 'read:packages'", True
+            scopes = _token_scopes(user, key)
+            if scopes is None:
+                return False, (
+                    f"rejected (HTTP {exc.code}): token unreadable or fine-grained; "
+                    "needs the 'read:packages' scope"
+                ), True
+            if "read:packages" not in scopes:
+                return False, (
+                    f"rejected (HTTP {exc.code}): this token has "
+                    f"'{', '.join(scopes)}' but not 'read:packages'"
+                ), True
+            return False, (
+                f"rejected (HTTP {exc.code}): token has 'read:packages', so check "
+                f"that gpr.user ('{user}') is the token owner"
+            ), True
         if exc.code == 404:
             return True, "registry reachable (artifact listing unavailable)", False
         return False, f"registry answered HTTP {exc.code}", False
@@ -158,9 +196,13 @@ class MorphyDoctor:
         )
         if token_blocking:
             missing.append(
-                "Replace the GitHub token in %USERPROFILE%\\.gradle\\gradle.properties: "
-                "the current one is rejected by GitHub Packages. Create a classic token "
-                "with the 'read:packages' scope."
+                "Fix the GitHub token used for Morphe packages: it needs the "
+                "'read:packages' scope for github.com/MorpheApp. If you signed in with "
+                "the GitHub CLI run 'gh auth refresh -h github.com -s read:packages', "
+                "then put the resulting token in %USERPROFILE%\\.gradle\\gradle.properties "
+                "as gpr.key (gpr.user = your username). A classic token with "
+                "'read:packages' works too; fine-grained tokens cannot read another "
+                "org's packages."
             )
 
         console.print(table)
