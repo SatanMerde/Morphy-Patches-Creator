@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "morphy-patches-creator"
-version = "2.0.0"
+version = "2.1.0"
 description = "Create Morphe Android patches with a guided wizard - no coding required"
 readme = "README.md"
 authors = [

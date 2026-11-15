@@ -103,7 +103,9 @@ def plan_for_finding(
     for candidate in finding.candidates:
         if candidate.signature in excluded:
             continue
-        strategy = candidate.strategy or choose_strategy(objective, candidate.return_type)
+        strategy = candidate.strategy or choose_strategy(
+            objective, candidate.return_type, candidate.method_name
+        )
         steps.append(PatchStep(target=candidate, strategy=strategy))
         if len(steps) >= max_steps:
             break
@@ -133,6 +135,20 @@ def plan_for_finding(
             "Low confidence: the suggested method may not be the right one. "
             "Test the app carefully, or try another objective."
         )
+
+    for step in plan.steps:
+        target = step.target
+        if target.fingerprint_verdict == "ambiguous":
+            plan.notes.append(
+                f"{target.signature}: the fingerprint matches "
+                f"{target.fingerprint_matches} methods; add a distinctive "
+                "string before relying on it."
+            )
+        elif target.fingerprint_verdict == "generic-anchor":
+            plan.notes.append(
+                f"{target.signature}: a fingerprint anchor is shared with "
+                f"{target.anchor_reuse} methods, so an app update may break it."
+            )
 
     return plan
 

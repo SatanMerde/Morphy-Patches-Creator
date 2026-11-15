@@ -14,8 +14,9 @@ really exist in the APK's bytecode.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, Iterable, List, Sequence, Tuple
 
 # Transformation strategies understood by the patch template engine.
 STRATEGY_BOOLEAN_TRUE = "boolean_true"       # return true
@@ -33,6 +34,20 @@ STRATEGY_LABELS: Dict[str, str] = {
     STRATEGY_CLEAR_BODY: "disable the method body",
     STRATEGY_DROP_FLAG: "remove the blocking flag",
 }
+
+# Name tokens that flip a boolean decision: ``isTrialExpired`` is not a
+# "premium" flag, it is the opposite and must answer "no".
+_NEGATIVE_TOKENS = frozenset({
+    "expired", "invalid", "failed", "failure", "error", "revoked", "denied",
+    "blocked", "disabled", "unavailable", "exceeded", "missing", "not", "no",
+    "without", "bad", "fake",
+})
+
+# Tokens that mean the feature is granted, used to flip an ad-style "false".
+_POSITIVE_FLAG_TOKENS = frozenset({
+    "free", "premium", "paid", "unlocked", "active", "valid", "enabled",
+    "granted", "allowed", "licensed",
+})
 
 
 @dataclass(frozen=True)
@@ -80,6 +95,10 @@ class Objective:
     # Only used by strategies that look for a specific integer literal.
     literal_targets: Tuple[int, ...] = ()
     literal_call_markers: Tuple[str, ...] = ()
+
+    # Trace SharedPreferences keys ("KEY_PREMIUM", "is_premium", ...) to find
+    # entitlement getters even when R8 renamed the method to ``a()``.
+    trace_preference_keys: bool = False
 
     tags: Tuple[str, ...] = field(default_factory=tuple)
 
@@ -156,11 +175,12 @@ OBJECTIVES: Tuple[Objective, ...] = (
             "com/android/billingclient", "com/revenuecat", "com/adapty",
             "com/qonversion", "com/amplitude/experiment",
         ),
-        strategies=(STRATEGY_BOOLEAN_TRUE, STRATEGY_RETURN_ZERO),
+        strategies=(STRATEGY_BOOLEAN_TRUE, STRATEGY_BOOLEAN_FALSE, STRATEGY_RETURN_ZERO),
         acceptable_returns=("Z", "I", "J"),
         min_score=4,
         require_context=True,
         penalise_ui_names=True,
+        trace_preference_keys=True,
         tags=("monetisation",),
     ),
     Objective(
@@ -394,19 +414,58 @@ def custom_objective(keywords: Sequence[str]) -> Objective:
     )
 
 
-def choose_strategy(objective: Objective, return_type: str) -> str:
-    """Picks the transformation that fits the method's return type."""
-    order = {
-        "Z": (STRATEGY_BOOLEAN_TRUE, STRATEGY_BOOLEAN_FALSE, STRATEGY_RETURN_ZERO, STRATEGY_CLEAR_BODY),
-        "V": (STRATEGY_RETURN_VOID, STRATEGY_CLEAR_BODY),
+def choose_strategy(objective: Objective, return_type: str, method_name: str = "") -> str:
+    """Picks the transformation that fits the return type and the name polarity.
+
+    ``hasPaidLicense`` must answer "yes"; ``isTrialExpired`` must answer "no".
+    The objective's own strategy order is the baseline, then a small polarity
+    check flips a boolean when the method name says the opposite.
+    """
+    applicable = {
+        "Z": (STRATEGY_BOOLEAN_TRUE, STRATEGY_BOOLEAN_FALSE, STRATEGY_RETURN_ZERO),
+        "V": (STRATEGY_RETURN_VOID, STRATEGY_DROP_FLAG, STRATEGY_CLEAR_BODY),
         "I": (STRATEGY_RETURN_ZERO,),
         "J": (STRATEGY_RETURN_ZERO,),
         "F": (STRATEGY_RETURN_ZERO,),
         "D": (STRATEGY_RETURN_ZERO,),
-        "L": (STRATEGY_RETURN_ZERO,),
+        "Ljava/lang/String;": (STRATEGY_RETURN_ZERO,),
     }.get(return_type, (STRATEGY_CLEAR_BODY,))
 
-    for strategy in order:
-        if strategy in objective.strategies:
-            return strategy
-    return objective.strategies[0]
+    if return_type == "Z":
+        # For a boolean, the objective's own order carries the intent
+        # (remove ads = false, unlock premium = true). Polarity fixes the rest.
+        choice = next(
+            (strategy for strategy in objective.strategies if strategy in applicable),
+            STRATEGY_BOOLEAN_TRUE,
+        )
+    else:
+        choice = next(
+            (strategy for strategy in applicable if strategy in objective.strategies),
+            applicable[0],
+        )
+
+    if choice == STRATEGY_BOOLEAN_TRUE and _name_has(method_name, _NEGATIVE_TOKENS):
+        if STRATEGY_BOOLEAN_FALSE in applicable and STRATEGY_BOOLEAN_FALSE in objective.strategies:
+            return STRATEGY_BOOLEAN_FALSE
+    elif choice == STRATEGY_BOOLEAN_FALSE and _name_has(method_name, _POSITIVE_FLAG_TOKENS):
+        if STRATEGY_BOOLEAN_TRUE in applicable and STRATEGY_BOOLEAN_TRUE in objective.strategies:
+            return STRATEGY_BOOLEAN_TRUE
+
+    # "hasNoAds" / "isAdFree" read negative but mean the ad-free state.
+    compact = "".join(char for char in method_name.lower() if char.isalnum())
+    if choice == STRATEGY_BOOLEAN_FALSE and any(
+        word in compact for word in ("noads", "adfree", "removead", "withoutad")
+    ):
+        if STRATEGY_BOOLEAN_TRUE in objective.strategies:
+            return STRATEGY_BOOLEAN_TRUE
+
+    return choice
+
+
+def _name_has(name: str, tokens: Iterable[str]) -> bool:
+    """Matches tokens against camelCase/snake_case words with a case boundary."""
+    if not name:
+        return False
+    words = [part.lower() for part in re.findall(r"[A-Z]?[a-z0-9]+|[A-Z]+(?![a-z])", name)]
+    wanted = set(token.lower() for token in tokens)
+    return any(word in wanted for word in words)

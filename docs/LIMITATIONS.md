@@ -7,9 +7,11 @@
 | Reads any APK / `.apkm` / `.xapk` / `.apks` | `zipfile` + hand-written AXML/DEX readers |
 | Package, version, SDK, permissions, activities | binary `AndroidManifest.xml` decoded natively |
 | Detects packers and anti-tamper markers | class/lib heuristics reported, never guessed around |
-| Finds feature gates | tokenised method names + SDK calls + literal sites |
+| Finds feature gates | tokenised method names + SDK calls + literal sites + preference keys |
 | Handles multi-DEX apps | every `classesN.dex` is scanned once |
-| Survives obfuscation | text constants, SDK calls and literals work without names |
+| Survives obfuscation | preference-key tracing, SDK calls and literals work without names |
+| Answers "who calls this?" | on-demand call graph (`morphy_xrefs`) over the app's own methods |
+| Checks its own fingerprints | every candidate must match exactly one method in the APK |
 | Writes current-API Kotlin | `patch(...)`, `Fingerprint`, `returnEarly`, `replaceInstruction` |
 | Rejects stale API | verifier fails on `@Patch` / `replaceMethod` |
 | Compiles a real `.mpp` | official `buildAndroid` (D8) through the template project |
@@ -36,13 +38,21 @@ Bytecode downloaded after launch is invisible to static analysis. Only a dynamic
 A decision made entirely inside a `.so` is out of scope. The tool lists native libraries and flags suspicious ones, but Morphe patches operate on Dalvik bytecode.
 
 ### 6. Fragile fingerprints
-If a method's name, class, text and literals all change between versions, the fingerprint stops matching. The verifier warns when a Fingerprint relies on a single signal, but no static tool can guarantee an update-proof match.
+If a method's name, class, text and literals all change between versions, the fingerprint stops matching. Three things reduce the risk without pretending it is gone:
+
+- **Uniqueness pass.** Every candidate is re-matched against the APK it came from. A fingerprint that matches zero methods is discarded (and reported), one that matches several is flagged, and an anchor shared with more than 200 methods is marked unstable.
+- **Structural filters.** When an obfuscated getter has no text anchor, the fingerprint gets a `methodCall(...)` filter (e.g. the delegate it calls) instead of relying on the class and method names alone.
+- **Version pinning.** A patch whose target class or method is an R8 name (`az4`, `a`) declares `AppTarget(version = "…")`, so it is not silently applied to a version it was never verified on.
+
+No static tool can guarantee an update-proof match; the verifier still warns when a `Fingerprint` relies on a single signal.
 
 ### 7. Universal goals
 "Remove ads" covers the common client-side pattern. Ad SDKs that decide server-side, or that stitch video server-side, will keep showing ads. Some apps route analytics through a shared method that also carries crash reports; disabling it may lose crash data — the report says when that risk applies.
 
 ### 8. Decisions hidden inside a bundled SDK
 Some apps delegate purchases or analytics to an SDK and keep no local check of their own. The only remaining match is then inside the SDK. The tool reports **"SDK found, no hook"** rather than suggesting an internal method: patching SDK internals is unreliable and breaks on every SDK update. `--details` names the SDK so the reason is visible.
+
+The preference-key pass often recovers the app's *own* entitlement check even when the billing UI lives in an SDK: the key the app writes after a purchase (`KEY_PREMIUM`) is stored by app code, in a small holder class, not by the SDK. That is why an obfuscated app such as Showly 3.72 still yields exactly one target (`az4.a`) for the premium goal, while `morphy_preferences` shows the evidence.
 
 ## Summary
 

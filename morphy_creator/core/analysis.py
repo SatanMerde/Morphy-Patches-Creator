@@ -26,6 +26,8 @@ from morphy_creator.core.dex import (
     MethodInfo,
     looks_like_obfuscated,
 )
+from morphy_creator.core.fingerprint import check_report
+from morphy_creator.core.preferences import PreferenceEvidence, PreferenceIndex
 from morphy_creator.presets.objectives import (
     STRATEGY_DROP_FLAG,
     Objective,
@@ -137,6 +139,12 @@ class TargetCandidate:
     literal_sites: List[tuple] = field(default_factory=list)
     reasons: List[str] = field(default_factory=list)
     dex_file: str = ""
+    # Preference keys that made this method suspicious (survives obfuscation).
+    preference_keys: List[str] = field(default_factory=list)
+    # Fingerprint uniqueness against the APK the candidate came from.
+    fingerprint_verdict: str = ""
+    fingerprint_matches: int = 1
+    anchor_reuse: int = 0
 
     @property
     def signature(self) -> str:
@@ -155,6 +163,12 @@ class TargetCandidate:
             "calls": self.calls[:8],
             "literals": self.literals[:8],
             "reasons": self.reasons,
+            "preference_keys": self.preference_keys,
+            "fingerprint": {
+                "verdict": self.fingerprint_verdict,
+                "matches": self.fingerprint_matches,
+                "anchor_reuse": self.anchor_reuse,
+            },
         }
 
 
@@ -240,6 +254,11 @@ def analyse(
 
         libraries: Dict[str, List[str]] = {o.id: [] for o in objectives}
         sdk_packages = _sdk_packages(objectives)
+        preference_index = (
+            PreferenceIndex.build(dex_files)
+            if any(objective.trace_preference_keys for objective in objectives)
+            else None
+        )
         class_count = 0
         method_count = 0
         obfuscated_classes = 0
@@ -260,7 +279,8 @@ def analyse(
                 if looks_like_obfuscated(cls.java_name.rsplit(".", 1)[-1]):
                     obfuscated_classes += 1
                 method_count += _scan_class(
-                    dex, cls, objectives, findings, max_targets, sdk_packages
+                    dex, cls, objectives, findings, max_targets, sdk_packages,
+                    preference_index,
                 )
 
         report = AnalysisReport(
@@ -272,6 +292,9 @@ def analyse(
         )
 
         _finalise(report, objectives)
+        # The scanner keeps decoded bodies cached, so this pass is cheap: it
+        # verifies that every fingerprint still targets exactly one method.
+        check_report(report, dex_files)
         return report
     finally:
         container.close()
@@ -316,6 +339,7 @@ def _scan_class(
     findings: Dict[str, ObjectiveFinding],
     max_targets: int,
     sdk_packages: Sequence[str] = (),
+    preference_index: Optional[PreferenceIndex] = None,
 ) -> int:
     """Scores every method of a class; returns how many methods were inspected."""
     inspected = 0
@@ -363,10 +387,16 @@ def _scan_class(
         if code is None or not code.complete:
             continue
 
+        pref_evidence = (
+            preference_index.evidence_for(method, vendored=vendored)
+            if preference_index is not None
+            else None
+        )
+
         for objective in objectives:
             _evaluate(objective, cls, method, code, name_hits[objective.id],
                       class_hits[objective.id], findings[objective.id], dex.name,
-                      max_targets, vendored, ui_name)
+                      max_targets, vendored, ui_name, pref_evidence)
 
     return inspected
 
@@ -383,6 +413,7 @@ def _evaluate(
     max_targets: int,
     vendored: bool = False,
     ui_name: bool = False,
+    pref_evidence: Optional[PreferenceEvidence] = None,
 ) -> None:
     score = 0
     reasons: List[str] = []
@@ -429,6 +460,23 @@ def _evaluate(
                 reasons.append(f"contains the text '{text[:60]}'")
                 break
     score += min(2, max(0, text_hits - 2))
+
+    # 3b. Preference-key evidence (the part that survives R8/ProGuard) ----------
+    pref_hit = False
+    pref_method_hit = False
+    pref_keys: List[str] = []
+    if objective.trace_preference_keys and pref_evidence is not None:
+        pref_hit = True
+        pref_method_hit = pref_evidence.source == "method"
+        pref_keys = list(pref_evidence.keys)
+        score += 6 if pref_evidence.source == "method" else 5
+        reasons.append(pref_evidence.detail)
+        if pref_evidence.source == "method":
+            # These keys are real constants of *this* method, so they are also
+            # valid fingerprint anchors. Class-level keys are not copied here.
+            for key in pref_keys[:2]:
+                if key not in strings:
+                    strings.append(key)
 
     # 4. Calls into known SDKs --------------------------------------------------
     for marker in objective.library_markers:
@@ -487,16 +535,18 @@ def _evaluate(
     if (
         objective.penalise_ui_names
         and method.name in _GENERIC_METHOD_NAMES
-        and not (name_hits or class_hits or text_hits or literal_hit)
+        and not (name_hits or class_hits or text_hits or literal_hit or pref_method_hit)
     ):
         return
 
     # Inside a billing/ads/analytics SDK, "calls that SDK" proves nothing.
     primary_library = library_call and not vendored
-    if objective.require_primary and not (name_hits or literal_hit or primary_library):
+    if objective.require_primary and not (name_hits or literal_hit or primary_library or pref_hit):
         return
 
-    if objective.require_context and not (class_hits or text_hits or library_call or literal_hit):
+    if objective.require_context and not (
+        class_hits or text_hits or library_call or literal_hit or pref_hit
+    ):
         return
 
     if score < objective.min_score:
@@ -521,7 +571,9 @@ def _evaluate(
         return_type=method.return_type,
         access_flags=method.access_flags,
         score=score,
-        strategy=STRATEGY_DROP_FLAG if literal_hit else choose_strategy(objective, method.return_type),
+        strategy=STRATEGY_DROP_FLAG if literal_hit else choose_strategy(
+            objective, method.return_type, method.name
+        ),
         strings=anchors[:4],
         calls=calls[:8],
         opcodes=code.opcode_names(12),
@@ -531,6 +583,7 @@ def _evaluate(
         ][:4],
         reasons=_dedupe(reasons)[:4],
         dex_file=dex_name,
+        preference_keys=pref_keys,
     )
 
     finding.candidates.append(candidate)

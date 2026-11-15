@@ -19,8 +19,11 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from morphy_creator.core.analysis import analyse
+from morphy_creator.core.apk import ApkContainer
 from morphy_creator.core.plan import dedupe_plans, plans_for_report
+from morphy_creator.core.preferences import PreferenceIndex
 from morphy_creator.core.verifier import PatchVerifier
+from morphy_creator.core.xrefs import CallGraph
 from morphy_creator.presets.objectives import OBJECTIVES, OBJECTIVES_BY_ID, custom_objective, match_text
 from morphy_creator.synthesizer.patch_writer import PatchWriter
 
@@ -71,6 +74,69 @@ TOOLS: List[Dict[str, Any]] = [
                 "max_targets": {"type": "integer", "description": "Methods patched per goal (default 2)"},
             },
             "required": ["apk_path", "goals", "output_dir"],
+        },
+    },
+    {
+        "name": "morphy_xrefs",
+        "description": (
+            "Call graph over the app's own methods: who calls a method, and what it "
+            "calls. Accepts a full reference (Lcom/foo/Bar;->a()Z) or a name fragment. "
+            "Use it to follow obfuscated chains (activity -> a() -> preferences)."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "apk_path": {"type": "string"},
+                "method": {"type": "string", "description": "Full method reference or name fragment"},
+                "direction": {
+                    "type": "string",
+                    "enum": ["both", "callers", "callees"],
+                    "description": "Which side of the edge to return (default: both).",
+                },
+                "include_overrides": {
+                    "type": "boolean",
+                    "description": (
+                        "Follow interface/override methods sharing the signature "
+                        "(default: false; ignored for obfuscated names)."
+                    ),
+                },
+            },
+            "required": ["apk_path", "method"],
+        },
+    },
+    {
+        "name": "morphy_search_strings",
+        "description": (
+            "Searches the app's string constants and returns the methods that contain "
+            "them. This is how a UI message, a preference key or a SKU is traced back "
+            "to the code that reads it."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "apk_path": {"type": "string"},
+                "query": {"type": "string", "description": "Text to look for (case-insensitive)"},
+                "case_sensitive": {"type": "boolean"},
+                "limit": {"type": "integer", "description": "Maximum methods returned (default 40)"},
+            },
+            "required": ["apk_path", "query"],
+        },
+    },
+    {
+        "name": "morphy_preferences",
+        "description": (
+            "Lists preference keys that look like entitlements (KEY_PREMIUM, is_premium, "
+            "...), the methods that reference them, and the parameterless getters in the "
+            "classes that own them. Works on obfuscated apps where method names are useless."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "apk_path": {"type": "string"},
+                "query": {"type": "string", "description": "Only keep keys containing this text"},
+                "limit": {"type": "integer", "description": "Maximum getters returned (default 40)"},
+            },
+            "required": ["apk_path"],
         },
     },
     {
@@ -198,6 +264,107 @@ def handle_call_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
             "warnings": report.warnings,
         }
 
+    if name == "morphy_xrefs":
+        container = ApkContainer.open(Path(arguments["apk_path"]))
+        try:
+            graph = CallGraph.build(container.dex_files())
+        finally:
+            container.close()
+
+        query = str(arguments["method"])
+        targets = [query] if "->" in query else graph.find(query, limit=5)
+        if not targets:
+            return {
+                "query": query,
+                "error": "No method of this APK matches. Try a name fragment such as 'onResume'.",
+            }
+
+        direction = arguments.get("direction") or "both"
+        include_overrides = bool(arguments.get("include_overrides", False))
+        methods: List[Dict[str, Any]] = []
+        for target in targets:
+            entry: Dict[str, Any] = {
+                "method": target,
+                "declared_in_apk": graph.is_declared(target),
+                "implementations": graph.implementations(target)[:10],
+            }
+            if direction in ("both", "callers"):
+                entry["callers"] = graph.callers(target, include_overrides)[:40]
+            if direction in ("both", "callees"):
+                entry["callees"] = graph.callees(target)[:40]
+            methods.append(entry)
+
+        return {
+            "query": query,
+            "methods": methods,
+            "scanned_methods": graph.method_count,
+            "indexed_edges": graph.edge_count,
+        }
+
+    if name == "morphy_search_strings":
+        query = str(arguments["query"])
+        case_sensitive = bool(arguments.get("case_sensitive", False))
+        limit = int(arguments.get("limit", 40))
+        needle = query if case_sensitive else query.lower()
+
+        container = ApkContainer.open(Path(arguments["apk_path"]))
+        try:
+            matches: List[Dict[str, Any]] = []
+            total = 0
+            for dex in container.dex_files():
+                for method in dex.iter_methods():
+                    if not method.has_body:
+                        continue
+                    code = method.code()
+                    if code is None:
+                        continue
+                    if case_sensitive:
+                        hits = [text for text in code.strings if needle in text]
+                    else:
+                        hits = [text for text in code.strings if needle in text.lower()]
+                    if not hits:
+                        continue
+                    total += 1
+                    if len(matches) < limit:
+                        matches.append(
+                            {
+                                "method": method.full_name,
+                                "class": method.java_class,
+                                "name": method.name,
+                                "descriptor": method.descriptor,
+                                "strings": hits[:4],
+                            }
+                        )
+        finally:
+            container.close()
+
+        return {"query": query, "total_matching_methods": total, "matches": matches}
+
+    if name == "morphy_preferences":
+        query = str(arguments.get("query") or "").lower()
+        limit = int(arguments.get("limit", 40))
+        container = ApkContainer.open(Path(arguments["apk_path"]))
+        try:
+            index = PreferenceIndex.build(container.dex_files())
+        finally:
+            container.close()
+
+        data = index.to_dict()
+        all_keys: List[Dict[str, Any]] = list(data["keys"])  # type: ignore[arg-type]
+        keys = [
+            entry for entry in all_keys
+            if not query or query in str(entry["key"]).lower()
+        ]
+        getters = [
+            entry for entry in index.candidate_getters()
+            if not query or any(query in str(key).lower() for key in entry["keys"])
+        ]
+        return {
+            "key_count": len(keys),
+            "keys": keys[:limit],
+            "candidate_getters": getters[:limit],
+        }
+
     if name == "morphe_unpack_apk":
         from morphy_creator.adapters.apktool_adapter import ApktoolAdapter
 
@@ -259,7 +426,7 @@ def run_stdio_server() -> None:
                     "id": request_id,
                     "result": {
                         "protocolVersion": "2024-11-05",
-                        "serverInfo": {"name": "morphy-mcp", "version": "2.0.0"},
+                        "serverInfo": {"name": "morphy-mcp", "version": "2.1.0"},
                         "capabilities": {"tools": {}},
                     },
                 }

@@ -24,6 +24,12 @@ from morphy_creator.core.analysis import (
 )
 from morphy_creator.core.apk import ApkInfo
 from morphy_creator.core.dex import descriptor_to_java, looks_like_obfuscated
+from morphy_creator.core.fingerprint import check_candidate, check_report
+from morphy_creator.core.preferences import (
+    PreferenceEvidence,
+    PreferenceIndex,
+    looks_like_preference_key,
+)
 from morphy_creator.core.plan import (
     PatchPlan,
     PatchStep,
@@ -35,6 +41,7 @@ from morphy_creator.core.plan import (
 )
 from morphy_creator.core.split_merger import SplitApkMerger
 from morphy_creator.core.verifier import PatchVerifier
+from morphy_creator.core.xrefs import CallGraph, MethodRef
 from morphy_creator.presets.objectives import (
     OBJECTIVES_BY_ID,
     STRATEGY_BOOLEAN_FALSE,
@@ -137,7 +144,7 @@ def fake_class(**overrides) -> SimpleNamespace:
 
 
 def evaluate(objective_id, method, code=None, name_hits=(), class_hits=(), ui_name=False,
-             cls=None, vendored=False):
+             cls=None, vendored=False, pref_evidence=None):
     objective = OBJECTIVES_BY_ID[objective_id]
     finding = ObjectiveFinding(objective_id=objective.id, title=objective.title)
     analysis._evaluate(
@@ -152,8 +159,43 @@ def evaluate(objective_id, method, code=None, name_hits=(), class_hits=(), ui_na
         6,
         vendored,
         ui_name,
+        pref_evidence,
     )
     return finding.candidates
+
+
+class FakeDexMethod:
+    """Duck-typed MethodInfo for the call-graph / preference / fingerprint tests."""
+
+    def __init__(self, class_descriptor, name, descriptor, return_type,
+                 parameters=(), strings=(), calls=(), fields=(), access_flags=0x0001):
+        self.class_descriptor = class_descriptor
+        self.name = name
+        self.descriptor = descriptor
+        self.return_type = return_type
+        self.parameters = tuple(parameters)
+        self.access_flags = access_flags
+        self.has_body = True
+        self._code = SimpleNamespace(
+            strings=list(strings),
+            called_methods=list(calls),
+            field_accesses=list(fields),
+            complete=True,
+        )
+
+    @property
+    def full_name(self) -> str:
+        return f"{self.class_descriptor}->{self.name}{self.descriptor}"
+
+    def code(self):
+        return self._code
+
+    def uses_strings(self):
+        return list(self._code.strings)
+
+
+def fake_dex(methods):
+    return SimpleNamespace(iter_methods=lambda: iter(methods))
 
 
 # ---------------------------------------------------------------------------
@@ -322,6 +364,31 @@ def test_kotlin_escapes_dangerous_text():
     assert "\\$var" in source
 
 
+def test_kotlin_obfuscated_target_gets_call_filter_and_version_pin():
+    candidate = make_candidate(
+        class_name="az4",
+        class_descriptor="Laz4;",
+        method_name="a",
+        method_descriptor="()Z",
+        strings=[],
+        calls=["Lrd5;->e(Ltg2;Ljava/lang/Object;)Ljava/lang/Boolean;"],
+    )
+    plan = make_plan(
+        [PatchStep(target=candidate, strategy=STRATEGY_BOOLEAN_TRUE)],
+        app_package="com.michaldrabik.showly2",
+        app_version="3.72.0",
+    )
+    source = kotlin.render(plan)
+
+    assert "import app.morphe.patcher.methodCall" in source
+    assert "methodCall(" in source
+    assert 'definingClass = "Lrd5;"' in source
+    assert 'name = "e"' in source
+    assert 'AppTarget(version = "3.72.0")' in source
+    assert "import app.morphe.patcher.patch.AppTarget" in source
+    assert PatchVerifier.verify_source(source).valid is True
+
+
 def test_generated_patch_passes_verifier():
     plan = make_plan([PatchStep(target=make_candidate(), strategy=STRATEGY_BOOLEAN_TRUE)])
     result = PatchVerifier.verify_source(kotlin.render(plan), "Generated.kt")
@@ -405,6 +472,17 @@ def test_choose_strategy_follows_return_type():
 
     tracking = OBJECTIVES_BY_ID["tracking"]
     assert choose_strategy(tracking, "V") == STRATEGY_RETURN_VOID
+
+
+def test_choose_strategy_respects_name_polarity():
+    premium = OBJECTIVES_BY_ID["premium"]
+    ads = OBJECTIVES_BY_ID["ads"]
+
+    assert choose_strategy(premium, "Z", "hasPaidLicense") == STRATEGY_BOOLEAN_TRUE
+    assert choose_strategy(premium, "Z", "isTrialExpired") == STRATEGY_BOOLEAN_FALSE
+    assert choose_strategy(premium, "Z", "isNotPremium") == STRATEGY_BOOLEAN_FALSE
+    assert choose_strategy(ads, "Z", "shouldShowAd") == STRATEGY_BOOLEAN_FALSE
+    assert choose_strategy(ads, "Z", "hasNoAds") == STRATEGY_BOOLEAN_TRUE
 
 
 def test_custom_objective_is_permissive():
@@ -495,6 +573,179 @@ def test_analysis_keeps_named_hook_inside_an_sdk():
     )
     assert candidates
     assert candidates[0].method_name == "isPremiumUser"
+
+
+# ---------------------------------------------------------------------------
+# Call graph
+# ---------------------------------------------------------------------------
+def test_method_ref_parse_roundtrip():
+    ref = MethodRef.parse("Lcom/foo/Bar;->a(Ljava/lang/String;I)Z")
+    assert ref.class_descriptor == "Lcom/foo/Bar;"
+    assert ref.name == "a"
+    assert ref.descriptor == "(Ljava/lang/String;I)Z"
+    assert ref.full_name == "Lcom/foo/Bar;->a(Ljava/lang/String;I)Z"
+    assert ref.signature == "a(Ljava/lang/String;I)Z"
+
+
+def test_call_graph_indexes_only_apk_methods():
+    caller = FakeDexMethod(
+        "Lcom/example/MainActivity;", "onResume", "()V", "V",
+        calls=["Laz4;->a()Z", "Landroid/app/Activity;->onResume()V"],
+    )
+    premium = FakeDexMethod("Laz4;", "a", "()Z", "Z")
+    graph = CallGraph.build([fake_dex([caller, premium])])
+
+    assert graph.method_count == 2
+    assert graph.callers("Laz4;->a()Z") == ["Lcom/example/MainActivity;->onResume()V"]
+    assert graph.callees("Lcom/example/MainActivity;->onResume()V")[0] == "Laz4;->a()Z"
+    assert graph.is_declared("Laz4;->a()Z") is True
+    assert graph.find("a()") == ["Laz4;->a()Z"]
+
+
+def test_call_graph_does_not_group_obfuscated_names():
+    caller_x = FakeDexMethod("Lx;", "m", "()V", "V", calls=["Lx;->a()Z"])
+    caller_y = FakeDexMethod("Ly;", "n", "()V", "V", calls=["Ly;->a()Z"])
+    method_x = FakeDexMethod("Lx;", "a", "()Z", "Z")
+    method_y = FakeDexMethod("Ly;", "a", "()Z", "Z")
+    graph = CallGraph.build([fake_dex([caller_x, caller_y, method_x, method_y])])
+
+    assert graph.callers("Lx;->a()Z", include_overrides=False) == ["Lx;->m()V"]
+    assert graph.callers("Lx;->a()Z", include_overrides=True) == ["Lx;->m()V"]
+    assert graph.implementations("Lx;->a()Z") == []
+
+    named_x = FakeDexMethod("Lx;", "isPremium", "()Z", "Z")
+    named_y = FakeDexMethod("Ly;", "isPremium", "()Z", "Z")
+    named_caller = FakeDexMethod("Lz;", "check", "()V", "V", calls=["Ly;->isPremium()Z"])
+    graph = CallGraph.build([fake_dex([named_x, named_y, named_caller])])
+    assert graph.callers("Lx;->isPremium()Z", include_overrides=True) == ["Lz;->check()V"]
+    assert set(graph.implementations("Lx;->isPremium()Z")) == {"Lx;->isPremium()Z", "Ly;->isPremium()Z"}
+
+
+# ---------------------------------------------------------------------------
+# Preference tracing
+# ---------------------------------------------------------------------------
+def test_preference_key_shapes():
+    for key in (
+        "KEY_PREMIUM", "KEY_PREMIUM_UNLOCKED", "is_premium", "premiumUser",
+        "subscription_active", "is_purchased", "LICENCE_VALID", "trialExpired",
+    ):
+        assert looks_like_preference_key(key) is True, key
+
+    for key in (
+        "Premium", "subscription", "ecommerce_purchase", "in_app_purchase",
+        "purchase_token", "app_store_subscription_cancel",
+        "subscription_started", "android.intent.action.USER_UNLOCKED",
+        "com.android.vending.billing.PURCHASES_UPDATED",
+        "https://example.com/premium",
+    ):
+        assert looks_like_preference_key(key) is False, key
+
+
+def test_preference_index_finds_delegate_holder():
+    ctor = FakeDexMethod(
+        "Laz4;", "<init>", "(Landroid/content/SharedPreferences;)V", "V",
+        strings=["KEY_PREMIUM"],
+        calls=["Lrd5;-><init>(Landroid/content/SharedPreferences;Ljava/lang/String;Z)V"],
+    )
+    getter = FakeDexMethod(
+        "Laz4;", "a", "()Z", "Z",
+        calls=["Lrd5;->e(Ltg2;Ljava/lang/Object;)Ljava/lang/Boolean;"],
+    )
+    event_holder = FakeDexMethod(
+        "Lpv1;", "x", "()J", "J", strings=["app_store_subscription_cancel"],
+    )
+    index = PreferenceIndex.build([fake_dex([ctor, getter, event_holder])])
+
+    evidence = index.evidence_for(getter)
+    assert evidence is not None
+    assert evidence.source == "class"
+    assert evidence.keys == ("KEY_PREMIUM",)
+    assert any("SharedPreferences" in key for key in evidence.keys) is False
+    assert index.evidence_for(event_holder) is None
+    assert index.candidate_getters()[0]["method"] == "Laz4;->a()Z"
+
+
+def test_preference_index_method_level_key():
+    reader = FakeDexMethod(
+        "Lcom/example/Settings;", "isPremium", "()Z", "Z",
+        strings=["is_premium"],
+        calls=["Landroid/content/SharedPreferences;->getBoolean(Ljava/lang/String;Z)Z"],
+    )
+    index = PreferenceIndex.build([fake_dex([reader])])
+    evidence = index.evidence_for(reader)
+    assert evidence is not None
+    assert evidence.source == "method"
+    assert evidence.keys == ("is_premium",)
+
+    with_parameter = FakeDexMethod(
+        "Lcom/example/Settings;", "check", "(Ljava/lang/String;)Z", "Z",
+        parameters=("Ljava/lang/String;",),
+        strings=["is_premium"],
+    )
+    assert index.evidence_for(with_parameter) is None
+
+
+def test_analysis_uses_preference_evidence_for_obfuscated_getter():
+    evidence = PreferenceEvidence(
+        ("KEY_PREMIUM",), "class",
+        "the class stores 'KEY_PREMIUM' in SharedPreferences",
+    )
+    candidates = evaluate(
+        "premium",
+        fake_method(name="a", descriptor="()Z", return_type="Z", parameters=()),
+        cls=fake_class(java_name="az4", descriptor="Laz4;"),
+        pref_evidence=evidence,
+    )
+    assert candidates
+    assert candidates[0].preference_keys == ["KEY_PREMIUM"]
+    assert candidates[0].strategy == STRATEGY_BOOLEAN_TRUE
+    assert any("SharedPreferences" in reason for reason in candidates[0].reasons)
+
+
+def test_analysis_reads_negative_names_as_false():
+    evidence = PreferenceEvidence(("trialExpired",), "method", "reads 'trialExpired'")
+    candidates = evaluate(
+        "premium", fake_method(name="isTrialExpired"), pref_evidence=evidence,
+    )
+    assert candidates
+    assert candidates[0].strategy == STRATEGY_BOOLEAN_FALSE
+
+
+# ---------------------------------------------------------------------------
+# Fingerprint uniqueness
+# ---------------------------------------------------------------------------
+def test_fingerprint_unique_ambiguous_missing():
+    method = FakeDexMethod(
+        "Lcom/example/billing/BillingManager;", "isPremiumUser", "()Z", "Z",
+        strings=["INAPP_PURCHASE_ITEM_LIST"],
+    )
+    unique = check_candidate([fake_dex([method])], make_candidate())
+    assert unique.verdict == "unique"
+    assert unique.exact_matches == 1
+
+    ambiguous = check_candidate([fake_dex([method, method])], make_candidate())
+    assert ambiguous.verdict == "ambiguous"
+    assert ambiguous.exact_matches == 2
+
+    missing = check_candidate(
+        [fake_dex([method])], make_candidate(strings=["NO_SUCH_STRING"]),
+    )
+    assert missing.verdict == "missing"
+
+
+def test_fingerprint_report_drops_missing_candidates():
+    finding = ObjectiveFinding(
+        objective_id="premium", title="Premium",
+        candidates=[make_candidate(strings=["NO_SUCH_STRING"])],
+    )
+    report = make_report([finding])
+    method = FakeDexMethod(
+        "Lcom/example/billing/BillingManager;", "isPremiumUser", "()Z", "Z",
+        strings=["INAPP_PURCHASE_ITEM_LIST"],
+    )
+    check_report(report, [fake_dex([method])])
+    assert finding.candidates == []
+    assert any("discarded" in warning for warning in report.warnings)
 
 
 # ---------------------------------------------------------------------------

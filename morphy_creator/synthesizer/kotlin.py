@@ -18,6 +18,7 @@ import re
 from typing import List
 
 from morphy_creator.core.plan import PatchPlan, PatchStep
+from morphy_creator.core.xrefs import MethodRef
 from morphy_creator.presets.objectives import (
     STRATEGY_BOOLEAN_FALSE,
     STRATEGY_BOOLEAN_TRUE,
@@ -26,6 +27,30 @@ from morphy_creator.presets.objectives import (
     STRATEGY_RETURN_VOID,
     STRATEGY_RETURN_ZERO,
 )
+
+# Framework packages carry no identification value inside a fingerprint.
+_IGNORED_FILTER_CLASSES = (
+    "Ljava/", "Ljavax/", "Lkotlin/", "Lkotlinx/", "Landroid/", "Landroidx/",
+    "Ldalvik/", "Lorg/json/", "Lorg/xml/",
+)
+
+
+def _is_obfuscated_identifier(text: str) -> bool:
+    """``az4`` / ``a`` / ``rd5``: short, meaningless R8 identifiers."""
+    simple = text.rsplit(".", 1)[-1].rsplit("/", 1)[-1].strip("L;")
+    return len(simple) <= 3 and simple.isalnum()
+
+
+def _fingerprint_call(step: PatchStep):
+    """A non-framework call that can serve as a structural filter."""
+    for call in step.target.calls:
+        try:
+            ref = MethodRef.parse(call)
+        except ValueError:
+            continue
+        if not ref.class_descriptor.startswith(_IGNORED_FILTER_CLASSES):
+            return ref
+    return None
 
 # DEX const opcodes -> smali instruction used to replace the same literal.
 _CONST_SMALI = {
@@ -128,6 +153,17 @@ def _fingerprint_block(step: PatchStep, name: str) -> str:
     if step.strategy == STRATEGY_DROP_FLAG:
         for literal in target.literals[:1]:
             lines.append(f"    filters = listOf(literal({literal})),")
+    elif not anchors:
+        # No text anchor (typical for an obfuscated getter): add a structural
+        # filter so the fingerprint is not just a (renameable) class + name.
+        call = _fingerprint_call(step)
+        if call is not None:
+            lines.append("    filters = listOf(")
+            lines.append("        methodCall(")
+            lines.append(f'            definingClass = "{_escape(call.class_descriptor)}",')
+            lines.append(f'            name = "{_escape(call.name)}",')
+            lines.append("        ),")
+            lines.append("    ),")
 
     lines.append(")")
     return "\n".join(lines)
@@ -200,6 +236,17 @@ def render(plan: PatchPlan) -> str:
         not (step.strategy == STRATEGY_DROP_FLAG and step.target.literal_sites)
         for step in plan.steps
     )
+    uses_method_call = any(
+        step.strategy != STRATEGY_DROP_FLAG
+        and not [text for text in step.target.strings if text and len(text) >= 3][:3]
+        and _fingerprint_call(step) is not None
+        for step in plan.steps
+    )
+    pin_version = bool(plan.app_version) and any(
+        _is_obfuscated_identifier(step.target.class_descriptor)
+        or _is_obfuscated_identifier(step.target.method_name)
+        for step in plan.steps
+    )
 
     header = [
         "/*",
@@ -221,6 +268,8 @@ def render(plan: PatchPlan) -> str:
     ]
     if uses_literal:
         imports.append("import app.morphe.patcher.literal")
+    if uses_method_call:
+        imports.append("import app.morphe.patcher.methodCall")
     if uses_match:
         imports.append("import app.morphe.patcher.match")
     if uses_replace:
@@ -229,6 +278,8 @@ def render(plan: PatchPlan) -> str:
     if uses_return_early:
         imports.append("import app.morphe.patcher.util.returnEarly")
     imports.append("import app.morphe.patcher.patch.Compatibility")
+    if pin_version:
+        imports.append("import app.morphe.patcher.patch.AppTarget")
     imports.append("import app.morphe.patcher.patch.patch")
 
     body = [
@@ -243,10 +294,21 @@ def render(plan: PatchPlan) -> str:
 
     if plan.app_package:
         app_name = plan.app_package.rsplit(".", 1)[-1]
-        body.append(
-            f'    compatibleWith(Compatibility("{_escape(plan.app_package)}", '
-            f'"{_escape(app_name)}"))'
-        )
+        if pin_version:
+            body.append("    compatibleWith(")
+            body.append("        Compatibility(")
+            body.append(f'            name = "{_escape(app_name)}",')
+            body.append(f'            packageName = "{_escape(plan.app_package)}",')
+            body.append(
+                f'            targets = listOf(AppTarget(version = "{_escape(plan.app_version)}")),'
+            )
+            body.append("        )")
+            body.append("    )")
+        else:
+            body.append(
+                f'    compatibleWith(Compatibility("{_escape(plan.app_package)}", '
+                f'"{_escape(app_name)}"))'
+            )
 
     body.append(_execute_block(plan, fingerprint_names))
     body.append("}")

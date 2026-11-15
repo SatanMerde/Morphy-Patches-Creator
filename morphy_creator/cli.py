@@ -299,6 +299,16 @@ def _write_report(
             lines.append(f"  Change: {step.plain_action}")
             for reason in step.target.reasons:
                 lines.append(f"  Why:    {reason}")
+            verdict = step.target.fingerprint_verdict
+            if verdict:
+                lines.append(
+                    f"  Match:  {verdict} "
+                    f"({step.target.fingerprint_matches} method(s) matched)"
+                )
+            lines.append("")
+        for note in plan.notes:
+            lines.append(f"  Note:   {note}")
+        if plan.notes:
             lines.append("")
         if plan.verify_hint:
             lines.append(f"  How to check: {plan.verify_hint}")

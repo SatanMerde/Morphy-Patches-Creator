@@ -249,16 +249,21 @@ See [docs/LIMITATIONS.md](docs/LIMITATIONS.md) for the detailed breakdown.
 
 ## AI assistants (MCP)
 
-`morphy-creator mcp` exposes six tools over the Model Context Protocol:
+`morphy-creator mcp` exposes nine tools over the Model Context Protocol:
 
 | Tool | Purpose |
 |---|---|
 | `morphy_list_goals` | List supported goals |
 | `morphy_inspect_apk` | Analyse an APK and explain what is patchable |
 | `morphy_create_patch` | Analyse → generate Kotlin → self-check → package |
+| `morphy_xrefs` | Call graph: who calls a method, and what it calls |
+| `morphy_search_strings` | Find the methods that contain a given text constant |
+| `morphy_preferences` | Entitlement-like preference keys and the getters that expose them |
 | `morphe_unpack_apk` | Apktool decompilation |
 | `morphe_decompile_java` | JADX decompilation |
 | `morphe_build_bundle` | Compile generated sources into a `.mpp` |
+
+The three investigation tools exist so an AI assistant can follow evidence instead of guessing: search a string (`KEY_PREMIUM`) → list the methods that contain it → walk the call graph to the activity that consumes it. The engine only returns facts read from the APK.
 
 Example OpenCode / Claude Desktop configuration:
 
@@ -283,14 +288,17 @@ Example OpenCode / Claude Desktop configuration:
 Morphy-Patches-Creator/
 ├── morphy_creator/
 │   ├── cli.py                  # wizard + commands
-│   ├── mcp_server.py           # MCP server (6 tools)
+│   ├── mcp_server.py           # MCP server (9 tools)
 │   ├── doctor.py               # environment checks
 │   ├── config.py               # Apktool/Java paths
 │   ├── core/
-│   │   ├── dex.py              # dependency-free DEX parser (strings, calls, literals)
+│   │   ├── dex.py              # dependency-free DEX parser (strings, calls, literals, fields)
 │   │   ├── axml.py             # dependency-free binary AndroidManifest reader
 │   │   ├── apk.py              # APK container: package, SDK, packers, .so list
 │   │   ├── analysis.py         # scoring engine (camelCase tokens, evidence)
+│   │   ├── xrefs.py            # call graph: callers / callees / implementations
+│   │   ├── preferences.py      # entitlement preference-key tracing
+│   │   ├── fingerprint.py      # fingerprint uniqueness against the APK
 │   │   ├── plan.py             # patch plan: naming, confidence, de-duplication
 │   │   ├── verifier.py         # API/structural check of generated Kotlin
 │   │   ├── agent.py            # PatchAgent.create: whole pipeline in one call
@@ -306,7 +314,7 @@ Morphy-Patches-Creator/
 └── pyproject.toml
 ```
 
-The analysis engine has **no third-party dependency**: DEX and AXML are parsed directly, which is why a 45 000-method APK is analysed in about 2 seconds and a 340 000-method one in about 17 seconds.
+The analysis engine has **no third-party dependency**: DEX and AXML are parsed directly, which is why a 43 000-method APK is analysed in about 1.7 seconds and a 342 000-method one in about 9 seconds for a single goal (about 17 s for every goal). The extra honesty passes — preference-key tracing and fingerprint uniqueness — reuse the method bodies decoded during the scan, so they add no second pass.
 
 ---
 
@@ -316,7 +324,7 @@ The analysis engine has **no third-party dependency**: DEX and AXML are parsed d
 .\.venv\Scripts\python.exe -m pytest tests -q
 ```
 
-The test suite covers the verifier (including rejection of the old ReVanced API), the Kotlin renderer, plan naming/confidence/de-duplication, camelCase token matching, the objective catalogue, split bundles and the writer, with no APK, JDK or network required.
+The test suite covers the verifier (including rejection of the old ReVanced API), the Kotlin renderer, plan naming/confidence/de-duplication, camelCase token matching, the objective catalogue, the call graph, preference-key tracing, fingerprint uniqueness, split bundles and the writer, with no APK, JDK or network required.
 
 ---
 

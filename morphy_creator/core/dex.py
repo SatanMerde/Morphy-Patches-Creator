@@ -78,6 +78,8 @@ _set([0xFC, 0xFD], 3)               # invoke-custom
 _set([0xFE, 0xFF], 2)               # const-method-handle / type
 
 _INVOKE_OPS = set(range(0x6E, 0x73)) | set(range(0x74, 0x79))
+# iget*/iput*/sget*/sput* (format 22c: field index in the second code unit).
+_FIELD_OPS = set(range(0x52, 0x6E))
 
 
 def _mutf8(data: bytes) -> str:
@@ -119,6 +121,9 @@ class MethodCode:
     # (opcode, register, value) for every const instruction, so a generated
     # patch can replace a blocking flag in place without guessing its register.
     literal_sites: List[tuple] = field(default_factory=list)
+    # (opcode, "Lcom/foo/Bar;->field:Ljava/lang/String;", type) for every field
+    # read/write. Preference delegates (``Lkotlin/Lazy;``) show up here.
+    field_accesses: List[tuple] = field(default_factory=list)
     opcodes: List[int] = field(default_factory=list)
     complete: bool = True
 
@@ -183,6 +188,10 @@ class MethodInfo:
     def uses_strings(self) -> List[str]:
         code = self.code()
         return list(code.strings) if code else []
+
+    def reads_fields(self) -> List[str]:
+        code = self.code()
+        return [name for (_op, name, _type) in code.field_accesses] if code else []
 
 
 @dataclass
@@ -393,6 +402,7 @@ class DexFile:
         called: List[str] = []
         constants: List[int] = []
         sites: List[tuple] = []
+        fields: List[tuple] = []
         opcodes: List[int] = []
 
         unit = 0
@@ -431,6 +441,11 @@ class DexFile:
                 if idx < len(self.method_refs):
                     class_desc, name, ret, params = self.method_refs[idx]
                     called.append(f"{class_desc}->{name}({''.join(params)}){ret}")
+            elif op in _FIELD_OPS:
+                idx = struct.unpack_from("<H", data, offset + 2)[0]
+                if idx < len(self.field_refs):
+                    class_desc, name, field_type = self.field_refs[idx]
+                    fields.append((op, f"{class_desc}->{name}:{field_type}", field_type))
             elif op == 0x12:  # const/4
                 value = word >> 12
                 if value & 0x8:
@@ -461,6 +476,7 @@ class DexFile:
         result.called_methods = called
         result.int_constants = constants
         result.literal_sites = sites
+        result.field_accesses = fields
         result.opcodes = opcodes
         result.complete = unit <= end + 8
         return result
