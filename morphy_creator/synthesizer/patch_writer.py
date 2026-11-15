@@ -34,7 +34,6 @@ _KNOWN_API_IMPORTS = {
     "Fingerprint": "app.morphe.patcher.Fingerprint",
     "literal": "app.morphe.patcher.literal",
     "methodCall": "app.morphe.patcher.methodCall",
-    "instructionMatches": "app.morphe.patcher.instructionMatches",
     "returnEarly": "app.morphe.patcher.util.returnEarly",
     "replaceInstruction": "app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction",
     "Compatibility": "app.morphe.patcher.patch.Compatibility",

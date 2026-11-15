@@ -335,7 +335,9 @@ def test_kotlin_drop_flag_replaces_instruction():
     )
     source = kotlin.render(plan)
     assert "import app.morphe.patcher.literal" in source
-    assert "import app.morphe.patcher.instructionMatches" in source
+    # ``instructionMatches`` is a property of the Match returned by match(),
+    # not an importable symbol; importing it broke the Kotlin build.
+    assert "import app.morphe.patcher.instructionMatches" not in source
     assert "filters = listOf(literal(8192))" in source
     assert "replaceInstruction(" in source
     assert 'const/16 v4, 0x0' in source

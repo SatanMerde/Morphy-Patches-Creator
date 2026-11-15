@@ -271,7 +271,6 @@ def render(plan: PatchPlan) -> str:
         imports.append("import app.morphe.patcher.methodCall")
     if uses_replace:
         imports.append("import app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction")
-        imports.append("import app.morphe.patcher.instructionMatches")
     if uses_return_early:
         imports.append("import app.morphe.patcher.util.returnEarly")
     imports.append("import app.morphe.patcher.patch.Compatibility")

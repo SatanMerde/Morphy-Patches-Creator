@@ -243,6 +243,18 @@ private object onResumeFingerprint : Fingerprint(
 
 The header comment names the app, the method, and why it was chosen. A developer can read it; you never have to.
 
+### Verified real builds
+
+Each shape below was compiled into a real `.mpp` with the official Morphe toolchain (Gradle + D8), not just generated:
+
+| App | Goal | What the patch exercises | Result |
+|---|---|---|---|
+| Cryptomator 2.1.0 (342k methods) | premium | `returnEarly` on a boolean flag | `.mpp`, 690 KB |
+| Showly 3.72.0 (obfuscated, 1 DEX) | premium | `methodCall` filter + `AppTarget` version pin | `.mpp`, 689 KB |
+| Claude 1.261113.19 (233k methods) | screenshots | `literal(0x2000)` + `instructionMatches` + `replaceInstruction` | `.mpp`, 691 KB |
+
+A bundle is ~690 KB because it carries the compiled `classes.dex` plus the 15 patch classes; that is what Morphe Manager needs.
+
 ---
 
 ## What it cannot do
