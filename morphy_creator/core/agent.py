@@ -1,109 +1,84 @@
 """
-Zero-Code Autonomous AI Patch Agent
-Enables non-developers to create production-ready Morphe patches
-from natural language prompts without writing a single line of code.
+Programmatic entry point (used by the CLI, the MCP server and the tests).
+
+``PatchAgent.create`` is the whole pipeline in one call:
+
+    analyse APK -> rank targets -> build a plan -> render Kotlin ->
+    self-check -> package
 """
+from __future__ import annotations
+
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Any, List
-import logging
-from morphy_creator.adapters.apktool_adapter import ApktoolAdapter
-from morphy_creator.adapters.jadx_adapter import JadxAdapter
-from morphy_creator.adapters.androguard_adapter import AndroguardAdapter
-from morphy_creator.adapters.rea_adapter import ReaAdapter
-from morphy_creator.adapters.morphe_ai_adapter import MorpheAiAdapter
-from morphy_creator.synthesizer.patch_template_engine import PatchTemplateEngine
-from morphy_creator.core.pipeline import PatchWorkbenchPipeline
+from typing import Dict, List, Optional, Sequence
 
-logger = logging.getLogger("morphy.agent")
+from morphy_creator.core.analysis import AnalysisReport, analyse
+from morphy_creator.core.plan import PatchPlan, dedupe_plans, plans_for_report
+from morphy_creator.core.verifier import PatchVerifier
+from morphy_creator.presets.objectives import Objective
+from morphy_creator.synthesizer.patch_writer import BuildResult, PatchWriter
 
-class AutonomousPatchAgent:
-    """End-to-end zero-code patch synthesis agent."""
 
-    def __init__(self):
-        self.apktool = ApktoolAdapter()
-        self.jadx = JadxAdapter()
-        self.androguard = AndroguardAdapter()
-        self.rea = ReaAdapter()
-        self.ai = MorpheAiAdapter()
-        self.pipeline = PatchWorkbenchPipeline()
+@dataclass
+class AgentResult:
+    report: AnalysisReport
+    plans: List[PatchPlan]
+    patch_files: List[Path]
+    checks: List[Dict[str, object]]
+    build: BuildResult
 
-    def process_prompt(self, natural_prompt: str) -> Dict[str, Any]:
-        """Translates a user's natural language goal into technical patch parameters."""
-        prompt_lower = natural_prompt.lower()
-
-        if any(w in prompt_lower for w in ["ad", "pub", "banner", "sponsor"]):
-            feature_name = "AdBlock"
-            patch_type = "adblock"
-            keywords = ["showAd", "loadAd", "isAdEnabled"]
-            description = "Removes in-app advertisements and promotional banners"
-        elif any(w in prompt_lower for w in ["dark", "amoled", "theme", "black", "noir"]):
-            feature_name = "AmoledTheme"
-            patch_type = "theme"
-            keywords = ["isDarkTheme", "isAmoledEnabled", "themeMode"]
-            description = "Forces pure AMOLED black background styling"
-        elif any(w in prompt_lower for w in ["screenshot", "capture", "screen", "secure"]):
-            feature_name = "AllowScreenshots"
-            patch_type = "security"
-            keywords = ["FLAG_SECURE", "setFlags", "isSecureWindow"]
-            description = "Enables taking screenshots in secure / protected views"
-        else:
-            feature_name = "UnlockFeature"
-            patch_type = "unlock"
-            keywords = ["isSubscribed", "isPremium", "hasLicense"]
-            description = f"Automated patch synthesized for: {natural_prompt}"
-
+    def to_dict(self) -> Dict[str, object]:
         return {
-            "feature_name": feature_name,
-            "patch_type": patch_type,
-            "keywords": keywords,
-            "description": description
+            "app": self.report.info.package,
+            "version": self.report.info.version_name,
+            "plans": [
+                {
+                    "goal": plan.objective_id,
+                    "title": plan.title,
+                    "confidence": plan.confidence,
+                    "steps": [step.to_dict() for step in plan.steps],
+                }
+                for plan in self.plans
+            ],
+            "patch_files": [str(path) for path in self.patch_files],
+            "checks": self.checks,
+            "bundle": {
+                "kind": self.build.kind,
+                "path": str(self.build.path),
+                "message": self.build.message,
+            },
+            "next_steps": self.build.next_steps,
+            "warnings": self.report.warnings,
         }
 
-    def auto_create_patch(
+
+class PatchAgent:
+    """Zero-interaction patch creation."""
+
+    def create(
         self,
         apk_path: Path,
-        user_prompt: str,
-        output_dir: Path
-    ) -> Dict[str, Any]:
-        """Autonomous 4-phase zero-code pipeline triggered by natural language."""
-        intent = self.process_prompt(user_prompt)
-        logger.info(f"[AI Agent] User Goal: '{user_prompt}' -> Parsed Intent: {intent['feature_name']}")
+        objectives: Sequence[Objective],
+        output_dir: Path,
+        max_steps: int = 2,
+        allow_network: bool = True,
+    ) -> AgentResult:
+        report = analyse(Path(apk_path), objectives)
+        plans = dedupe_plans(plans_for_report(report, objectives, max_steps=max_steps))
 
-        workspace = output_dir / "workspace_cache"
-        workspace.mkdir(parents=True, exist_ok=True)
+        writer = PatchWriter(Path(output_dir))
+        written = [writer.write(plan) for plan in plans]
+        checks = [PatchVerifier.verify_patch_file(path) for path in written]
+        build = writer.build_bundle(written, allow_network=allow_network)
 
-        # Step 1: Decompile Java & Smali
-        logger.info("[AI Agent] Step 1/4: Ingesting APK structures...")
-
-        # Step 2: Semantic Analysis
-        logger.info("[AI Agent] Step 2/4: Scanning code patterns & method triggers...")
-        scan_results = self.androguard.scan_apk_semantics(apk_path, intent["keywords"])
-
-        # Step 3: Patch Synthesis (Kotlin)
-        logger.info("[AI Agent] Step 3/4: Generating idiomatic Morphe Kotlin patch...")
-        class_name = f"{intent['feature_name']}Patch"
-        patch_code = PatchTemplateEngine.render_unlock_patch(
-            package_name="custom",
-            patch_name=f"{intent['feature_name']} Patch",
-            class_name=class_name,
-            description=intent["description"],
-            strings=intent["keywords"],
-            opcodes=["invoke-virtual", "move-result", "return"]
+        return AgentResult(
+            report=report,
+            plans=plans,
+            patch_files=written,
+            checks=checks,
+            build=build,
         )
 
-        patch_file = output_dir / f"{class_name}.kt"
-        patch_file.parent.mkdir(parents=True, exist_ok=True)
-        patch_file.write_text(patch_code, encoding="utf-8")
 
-        # Step 4: Bundle Compilation
-        logger.info("[AI Agent] Step 4/4: Building ready-to-use .mpp bundle...")
-        bundle_file = output_dir / "distribution" / "patches.mpp"
-        self.pipeline.build_bundle(output_dir, bundle_file)
-
-        return {
-            "status": "success",
-            "feature_name": intent["feature_name"],
-            "patch_file": str(patch_file),
-            "bundle_file": str(bundle_file),
-            "summary": f"Successfully created {class_name} targeting '{user_prompt}'."
-        }
+# Backwards-compatible name used by the old test suite / scripts.
+AutonomousPatchAgent = PatchAgent

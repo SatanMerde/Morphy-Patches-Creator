@@ -9,6 +9,7 @@ enabling AI agents and LLMs to understand application semantics effortlessly.
 import subprocess
 import logging
 from pathlib import Path
+from morphy_creator.core.subprocess_utils import run_command
 
 logger = logging.getLogger("morphy.jadx")
 
@@ -25,7 +26,7 @@ class JadxAdapter:
             cmd.append("--deobf")
         logger.info(f"Executing JADX decompilation: {' '.join(cmd)}")
         try:
-            subprocess.run(cmd, capture_output=True, text=True, check=True)
+            run_command(cmd)
             logger.info("JADX decompilation completed successfully.")
             return True
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
