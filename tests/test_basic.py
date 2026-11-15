@@ -62,7 +62,12 @@ from morphy_creator.presets.objectives import (
     match_text,
 )
 from morphy_creator.synthesizer import kotlin
-from morphy_creator.synthesizer.patch_writer import PatchWriter, _gradle_error_tail
+from morphy_creator.synthesizer.patch_writer import (
+    PatchWriter,
+    _gradle_error_tail,
+    _missing_api_symbols,
+    _repair_missing_imports,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -840,6 +845,48 @@ def test_build_bundle_without_sources_is_honest():
         assert result.is_bundle is False
         assert result.kind == "project"
         assert result.next_steps
+
+
+def test_repair_missing_imports_uses_compiler_symbols():
+    log = (
+        "e: file:///C:/tmp/UnlockPremium.kt: (12, 5): "
+        "unresolved reference: methodCall\n"
+        "e: file:///C:/tmp/UnlockPremium.kt: (20, 9): "
+        "unresolved reference 'AppTarget'.\n"
+    )
+    assert _missing_api_symbols(log) == ["methodCall", "AppTarget"]
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        source = (
+            "package app.morphe.patches.premium\n"
+            "\n"
+            "import app.morphe.patcher.Fingerprint\n"
+            "\n"
+            "val p = patch(name = \"x\") {\n"
+            "    targets = listOf(AppTarget(version = \"1.0\"))\n"
+            "    filters = listOf(methodCall(definingClass = \"Lx;\", name = \"a\"))\n"
+            "}\n"
+        )
+        file = Path(tmp_dir) / "UnlockPremium.kt"
+        file.write_text(source, encoding="utf-8")
+
+        repairs = _repair_missing_imports([file], log)
+        text = file.read_text(encoding="utf-8")
+        assert "import app.morphe.patcher.methodCall" in text
+        assert "import app.morphe.patcher.patch.AppTarget" in text
+        assert len(repairs) == 2
+
+        # A second pass must not duplicate imports.
+        assert _repair_missing_imports([file], log) == []
+
+
+def test_repair_missing_imports_ignores_unknown_symbols():
+    log = "e: Foo.kt: (3, 1): unresolved reference: definitelyNotMorpheApi\n"
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        file = Path(tmp_dir) / "Foo.kt"
+        file.write_text("package x\n\nval y = definitelyNotMorpheApi\n", encoding="utf-8")
+        assert _repair_missing_imports([file], log) == []
+        assert "definitelyNotMorpheApi" in file.read_text(encoding="utf-8")
 
 
 def test_run_gradle_launches_windows_wrapper():

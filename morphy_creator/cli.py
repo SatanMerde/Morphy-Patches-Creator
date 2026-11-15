@@ -253,9 +253,19 @@ def _print_next_steps(result, report_file: Path) -> None:
         ))
         return
 
+    repair_note = ""
+    repairs = getattr(result, "repairs", None) or []
+    if repairs:
+        repair_note = (
+            "\n[yellow]Automatic repair:[/yellow] "
+            + escape("; ".join(repairs))
+            + "\n"
+        )
+
     console.print(Panel(
         f"[bold yellow]Patch source written, bundle not compiled yet[/bold yellow]\n"
-        f"[dim]{escape(_short_message(result.message))}[/dim]\n\n"
+        f"[dim]{escape(_short_message(result.message))}[/dim]\n"
+        f"{repair_note}\n"
         f"Everything is saved in [bold]{escape(str(result.path.parent))}[/bold].\n"
         "What is left to do:\n\n"
         + "\n".join(f"  {escape(line)}" for line in result.next_steps),
@@ -691,9 +701,15 @@ def build(patches_dir: str, output: str) -> None:
     if result.is_bundle:
         console.print(f"[bold green]Bundle ready:[/bold green] {result.path}")
     else:
+        repairs = getattr(result, "repairs", None) or []
+        repair_note = (
+            "\n[yellow]Automatic repair:[/yellow] " + escape("; ".join(repairs)) + "\n"
+            if repairs else ""
+        )
         console.print(Panel(
             f"[bold yellow]Could not compile the bundle[/bold yellow]\n"
-            f"[dim]{escape(_short_message(result.message))}[/dim]\n\n"
+            f"[dim]{escape(_short_message(result.message))}[/dim]\n"
+            f"{repair_note}\n"
             + "\n".join(f"  {escape(line)}" for line in result.next_steps),
             title="What is missing",
             border_style="yellow",

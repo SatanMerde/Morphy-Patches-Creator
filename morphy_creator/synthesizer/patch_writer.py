@@ -25,6 +25,23 @@ from morphy_creator.synthesizer import kotlin
 TEMPLATE_URL = "https://github.com/MorpheApp/morphe-patches-template.git"
 TEMPLATE_PATCH_DIR = Path("patches") / "src" / "main" / "kotlin"
 
+# A wrong import is a mechanical compile error the writer can fix without
+# guessing: the symbol is already named in the compiler diagnostic and the
+# package is one the synthesizer itself emits.
+MAX_BUILD_ATTEMPTS = 3
+_KNOWN_API_IMPORTS = {
+    "Fingerprint": "app.morphe.patcher.Fingerprint",
+    "match": "app.morphe.patcher.match",
+    "literal": "app.morphe.patcher.literal",
+    "methodCall": "app.morphe.patcher.methodCall",
+    "instructionMatches": "app.morphe.patcher.instructionMatches",
+    "returnEarly": "app.morphe.patcher.util.returnEarly",
+    "replaceInstruction": "app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction",
+    "Compatibility": "app.morphe.patcher.patch.Compatibility",
+    "AppTarget": "app.morphe.patcher.patch.AppTarget",
+    "patch": "app.morphe.patcher.patch.patch",
+}
+
 
 @dataclass
 class BuildResult:
@@ -34,6 +51,7 @@ class BuildResult:
     kind: str                       # "mpp" | "project"
     message: str
     next_steps: List[str] = field(default_factory=list)
+    repairs: List[str] = field(default_factory=list)
 
     @property
     def is_bundle(self) -> bool:
@@ -91,13 +109,26 @@ class PatchWriter:
             return self._project_only(dist, files, " ".join(missing))
 
         built, log = _run_gradle(project)
+        repairs: List[str] = []
+        attempts = 1
+        while not built and attempts < MAX_BUILD_ATTEMPTS:
+            fixes = _repair_missing_imports(files, log)
+            if not fixes:
+                break
+            repairs.extend(fixes)
+            if not _copy_sources(project, files):
+                break
+            attempts += 1
+            built, log = _run_gradle(project)
+
         if not built:
-            return self._project_only(dist, files, log)
+            return self._project_only(dist, files, log, repairs=repairs)
 
         mpp = _newest_bundle(project)
         if mpp is None:
             return self._project_only(
-                dist, files, "The build finished but no .mpp file was produced."
+                dist, files, "The build finished but no .mpp file was produced.",
+                repairs=repairs,
             )
 
         target = dist / mpp.name
@@ -110,10 +141,17 @@ class PatchWriter:
                 f"Copy {target.name} to your phone.",
                 "Open Morphe Manager, import the bundle, choose the app and apply.",
             ],
+            repairs=repairs,
         )
 
     # -- fallback --------------------------------------------------------------
-    def _project_only(self, dist: Path, files: List[Path], reason: str) -> BuildResult:
+    def _project_only(
+        self,
+        dist: Path,
+        files: List[Path],
+        reason: str,
+        repairs: Optional[List[str]] = None,
+    ) -> BuildResult:
         archive = dist / "morphy-project.zip"
         source_root = self.output_dir / "src"
         with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -121,6 +159,7 @@ class PatchWriter:
                 relative = file.relative_to(source_root) if file.is_relative_to(source_root) else Path(file.name)
                 zf.write(file, Path("patch-sources") / relative)
 
+        repairs = list(repairs or [])
         auth_problem = any(
             marker in reason.lower()
             for marker in (
@@ -144,7 +183,20 @@ class PatchWriter:
                 "3. Add it to %USERPROFILE%\\.gradle\\gradle.properties as: gpr.user=<github username> and gpr.key=<token>",
                 "4. Run: morphy-creator build <this folder>",
             ]
-        return BuildResult(path=archive, kind="project", message=reason, next_steps=next_steps)
+        message = reason
+        if repairs:
+            message = (
+                reason
+                + "\n\nAutomatic repair attempted: "
+                + "; ".join(repairs)
+            )
+        return BuildResult(
+            path=archive,
+            kind="project",
+            message=message,
+            next_steps=next_steps,
+            repairs=repairs,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -184,6 +236,68 @@ def _copy_sources(project: Path, files: List[Path]) -> bool:
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(source, encoding="utf-8")
     return True
+
+
+def _missing_api_symbols(log: str) -> List[str]:
+    """Symbols the Kotlin compiler called unresolved, limited to known APIs."""
+    found: List[str] = []
+    for line in log.splitlines():
+        lowered = line.lower()
+        if "unresolved reference" not in lowered:
+            continue
+        tail = line[lowered.find("unresolved reference"):]
+        for symbol in re.findall(r"[A-Za-z_][A-Za-z0-9_]*", tail):
+            if symbol in _KNOWN_API_IMPORTS and symbol not in found:
+                found.append(symbol)
+    return found
+
+
+def _insert_import(source: str, import_line: str) -> str:
+    lines = source.splitlines()
+    insert_at = 0
+    for index, line in enumerate(lines):
+        if line.startswith("import "):
+            insert_at = index + 1
+    if insert_at == 0:
+        for index, line in enumerate(lines):
+            if line.startswith("package "):
+                insert_at = index + 1
+                break
+    lines.insert(insert_at, import_line)
+    return "\n".join(lines) + ("\n" if source.endswith("\n") else "")
+
+
+def _repair_missing_imports(files: List[Path], log: str) -> List[str]:
+    """Adds a known Morphe import when the compiler names it as unresolved.
+
+    Only symbols the synthesizer itself emits are eligible, so this cannot
+    invent an API. It is a mechanical fix for a missing import, nothing more.
+    """
+    symbols = _missing_api_symbols(log)
+    if not symbols:
+        return []
+
+    repairs: List[str] = []
+    for file in files:
+        try:
+            text = file.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        original = text
+        body = "\n".join(
+            line for line in text.splitlines() if not line.startswith("import ")
+        )
+        for symbol in symbols:
+            import_line = f"import {_KNOWN_API_IMPORTS[symbol]}"
+            if import_line in text:
+                continue
+            if not re.search(rf"\b{re.escape(symbol)}\b", body):
+                continue
+            text = _insert_import(text, import_line)
+            repairs.append(f"added '{import_line}' for unresolved '{symbol}'")
+        if text != original:
+            file.write_text(text, encoding="utf-8")
+    return repairs
 
 
 def _gradle_properties_key() -> bool:

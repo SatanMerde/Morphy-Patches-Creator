@@ -113,3 +113,4 @@ The verifier and the writer share one rule: never produce something that looks i
 
 - `@Patch` and `replaceMethod` do not exist in the current Morphe API, so the verifier treats them as errors.
 - A `.mpp` without `classes.dex` is rejected by Morphe Manager, so the writer only returns `kind="mpp"` after a successful `buildAndroid`, and otherwise returns `kind="project"` with explicit next steps.
+- When Kotlin reports a **missing import** for a symbol the synthesizer itself emits, the writer adds that exact import and retries (up to three attempts). It never invents an API or edits patch logic, and the automatic change is printed and written to `REPORT.txt`.
