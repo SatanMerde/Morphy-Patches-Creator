@@ -64,3 +64,6 @@ venv.bak/
 workspace/
 workspace_temp/
 generated_patches/
+morphy-output/
+merged_splits/
+*.mpp

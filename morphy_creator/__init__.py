@@ -1,7 +1,10 @@
 """
-Morphy Patches Creator: The Ultimate Morphe Patch Engineering Workbench
-Powered by Apktool, REA, and Morphe-AI.
+Morphy Patches Creator: build Morphe patches without writing code.
+
+The engine reads the app's own bytecode (DEX) and binary manifest (AXML), turns
+a plain-English goal into ranked, evidence-backed hook candidates, and emits
+Kotlin that targets the current ``app.morphe.patcher`` API.
 """
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"
 __author__ = "SatanMerde"

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "morphy-patches-creator"
-version = "1.0.0"
-description = "The Ultimate Morphe Patch Engineering Workbench - Powered by Apktool, REA & Morphe-AI"
+version = "2.0.0"
+description = "Create Morphe Android patches with a guided wizard - no coding required"
 readme = "README.md"
 authors = [
     { name = "SatanMerde", email = "research@example.com" }
@@ -25,9 +25,7 @@ classifiers = [
 ]
 dependencies = [
     "click>=8.1.0",
-    "jinja2>=3.1.0",
-    "rich>=13.0.0",
-    "pydantic>=2.0.0"
+    "rich>=13.0.0"
 ]
 requires-python = ">=3.10"
 
