@@ -650,8 +650,21 @@ def test_preference_key_shapes():
         "subscription_started", "android.intent.action.USER_UNLOCKED",
         "com.android.vending.billing.PURCHASES_UPDATED",
         "https://example.com/premium",
+        # Purchase bookkeeping, not entitlement state (Moises 2.72 p9.i.d).
+        "LAST_QUERY_PURCHASE_HISTORY_TIME", "last_purchase_refresh_time",
+        "purchaseQueryCount", "PURCHASE_DETAILS_SET",
+        # "subscri" inside a negation says the opposite of "subscribed".
+        "playlistUnsubscriber",
+        # Facebook standard event names bundled into many apps (BandLab).
+        "StartTrial", "SubscriptionRestore", "Subscribe",
+        # Protobuf enum constant, not a preference (BandLab).
+        "DIAGNOSTIC_EVENT_TYPE_NATIVE_AD_REVENUE_SUBSCRIPTION_STARTED",
     ):
         assert looks_like_preference_key(key) is False, key
+
+    # A strong token still wins: an expiry timestamp *is* entitlement state.
+    for key in ("premium_until_time", "trialExpiryTimestamp"):
+        assert looks_like_preference_key(key) is True, key
 
 
 def test_preference_index_finds_delegate_holder():

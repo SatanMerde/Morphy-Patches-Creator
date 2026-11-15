@@ -65,7 +65,43 @@ _READ_CALLS: Tuple[str, ...] = (
     "getall", "contains",
 )
 
+# Qualifiers that describe bookkeeping *around* a purchase (when it was last
+# queried, whether a refresh is due) instead of the entitlement itself.
+# "LAST_QUERY_PURCHASE_HISTORY_TIME" is a refresh throttle, not a paid flag, so
+# a weak token must not be enough on its own when one of these is present.
+_BOOKKEEPING_TOKENS = frozenset({
+    "query", "history", "cache", "cached", "refresh", "sync", "timestamp",
+    "last", "attempt", "attempts", "retry", "time", "date", "count", "timer",
+})
+
 _KEY_RE = re.compile(r"[A-Za-z0-9_.:\-]+")
+
+# Analytics event vocabulary. An ALL-CAPS key containing one of these is a
+# protobuf enum constant or a logging tag, not a stored flag
+# ("DIAGNOSTIC_EVENT_TYPE_NATIVE_AD_REVENUE_SUBSCRIPTION_STARTED").
+_EVENT_VOCABULARY = frozenset({
+    "event", "events", "analytics", "tracking", "metric", "metrics", "log",
+})
+
+# Verbs that make a bare CamelCase string an event name rather than a key:
+# Facebook's standard events are literally "StartTrial" and "SubscriptionRestore".
+_ACTION_TOKENS = frozenset({
+    "start", "started", "stop", "restore", "restored", "purchase", "purchased",
+    "subscribe", "subscribed", "cancel", "cancelled", "renew", "renewed",
+    "upgrade", "upgraded", "complete", "completed", "activate", "activated",
+    "begin", "success", "failure", "error",
+})
+
+
+def _camel_words(text: str) -> List[str]:
+    """Ordered lowercase words of a key, split on camelCase and separators."""
+    spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", " ", text)
+    return [part for part in re.split(r"[^A-Za-z0-9]+", spaced.lower()) if part]
+
+
+def _word_tokens(text: str) -> Set[str]:
+    """``LAST_QUERY_PURCHASE_HISTORY_TIME`` / ``hasPaidPlan`` -> lowercase words."""
+    return set(_camel_words(text))
 
 # Only methods that could be a decision point are indexed as readers. This is
 # exactly the set the scanner decodes anyway, so the index is free.
@@ -99,6 +135,16 @@ def looks_like_preference_key(text: str) -> bool:
     if lowered.startswith(_SYSTEM_PREFIXES):
         return False
 
+    words_list = _camel_words(value)
+    words = set(words_list)
+    # A negated action is not an entitlement state: "playlistUnsubscriber"
+    # contains "subscri" but says the opposite of "subscribed".
+    if any(word.startswith("unsub") for word in words):
+        return False
+    # ALL-CAPS analytics / protobuf enum constants are events, not flags.
+    if value.isupper() and words & _EVENT_VOCABULARY:
+        return False
+
     first_word = lowered.split("_", 1)[0]
     pref_prefixed = "_" in lowered and first_word in _PREF_PREFIXES
     if not value.isupper() and not pref_prefixed and lowered.endswith(_EVENT_SUFFIXES):
@@ -109,14 +155,23 @@ def looks_like_preference_key(text: str) -> bool:
     if not strong:
         if not weak:
             return False
-        all_caps = value.isupper() and any(char.isalpha() for char in value)
-        if not (all_caps or pref_prefixed):
+        # A weak token inside a cache/timing key is bookkeeping, not a flag.
+        if words & _BOOKKEEPING_TOKENS:
+            return False
+        # ``purchas``/``paid``/``unlock`` are also nouns ("PURCHASE_DETAILS_SET",
+        # "purchaseToken"). Only a state prefix turns one into a stored flag:
+        # ``is_purchased``, ``hasPaidPlan``, ``KEY_PURCHASE``.
+        if not any(word in _PREF_PREFIXES for word in words_list[:2]):
             return False
 
     has_separator = any(char in value for char in "_.:-")
     mixed_case = bool(re.search(r"[a-z][A-Z]", value)) or bool(re.search(r"[A-Z]{2,}", value))
     if not (has_separator or mixed_case):
         # ``premium`` alone is usually a tag or a short label, not a key.
+        return False
+    if not has_separator and words & _ACTION_TOKENS and words_list[0] not in _PREF_PREFIXES:
+        # Bare CamelCase starting with a verb is an event or a label
+        # ("StartTrial", "SubscriptionRestore"), not a stored key.
         return False
     return True
 
@@ -267,11 +322,22 @@ class PreferenceIndex:
         full_name = getattr(method, "full_name", "")  # type: ignore[attr-defined]
         own_keys = self.keys_for_method(full_name)
         if own_keys and return_type in _METHOD_LEVEL_RETURNS:
-            reads = _calls_preferences(getattr(method, "code", lambda: None)())
-            detail = "the method reads " + ", ".join(f"'{key}'" for key in own_keys[:2])
-            if reads:
-                detail += " through a preferences accessor"
-            return PreferenceEvidence(tuple(own_keys), "method", detail)
+            code = getattr(method, "code", lambda: None)()
+            reads = _calls_preferences(code)
+            # A string constant that merely *contains* "premiumUser" (a model's
+            # toString, a serialized field name) is not proof of a preference
+            # read. The method must touch SharedPreferences, directly or through
+            # its own class.
+            prefs_aware = (
+                reads
+                or _reads_preferences_field(code)
+                or self._is_prefs_aware(getattr(method, "class_descriptor", ""))
+            )
+            if prefs_aware:
+                detail = "the method reads " + ", ".join(f"'{key}'" for key in own_keys[:2])
+                if reads:
+                    detail += " through a preferences accessor"
+                return PreferenceEvidence(tuple(own_keys), "method", detail)
 
         class_descriptor = getattr(method, "class_descriptor", "")  # type: ignore[attr-defined]
         class_keys = self.keys_for_class(class_descriptor)

@@ -121,7 +121,7 @@ Nothing is written until you confirm.
 | `screenshot_watermark` | Remove watermark/overlay | Watermark drawing methods do nothing | Overlays rendered outside the app |
 | `custom` | Anything else | Searches method names, class names and text for your own words | Best-effort; review the suggestions |
 
-Every candidate is scored on concrete evidence: a method-name match, a call into a known SDK, a blocking literal, plus contextual corroboration. Constructors, vendored libraries (`androidx`, `kotlin`, …), look-alike names (`isAdded` vs `isAd`), and methods *inside* a bundled SDK are filtered out or demoted, so the plan points at the app's own decision, not an SDK's internal helper.
+Every candidate is scored on concrete evidence: a method-name match, a call into a known SDK, a blocking literal, a stored entitlement key, plus contextual corroboration. Constructors, vendored libraries (`androidx`, `kotlin`, …), look-alike names (`isAdded` vs `isAd`), and methods *inside* a bundled SDK are filtered out — bundled SDK internals (Firebase, Facebook, TikTok IAP, ad networks, billing proxies, analytics) are dropped for feature goals and only kept where the goal *is* instrumentation (`tracking`), so the plan points at the app's own decision.
 
 ---
 

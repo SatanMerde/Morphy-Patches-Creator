@@ -45,6 +45,20 @@ _VENDORED_PACKAGES = (
     "org.apache.", "com.fasterxml.", "com.dropbox.", "com.microsoft.",
     "org.bouncycastle.", "com.bea.xml.", "org.json.", "org.xmlpull.",
     "com.google.gson.", "io.grpc.", "com.google.protobuf.",
+    # Ads, billing and monetisation SDKs: patching their internals is not a
+    # reliable way to change the app's own decision.
+    "com.facebook.",
+    "com.facebook.ads.", "com.facebook.appevents.", "com.facebook.gamingservices.",
+    "com.facebook.react.", "com.android.billingclient.", "com.revenuecat.",
+    "com.adapty.", "com.qonversion.", "io.purchasely.", "com.pairip.",
+    "com.inmobi.", "com.adjust.", "com.appsflyer.", "com.razorpay.",
+    "com.chartboost.", "com.applovin.", "com.unity3d.ads.", "com.ironsource.",
+    "com.mopub.", "com.adcolony.", "com.vungle.", "com.mintegral.",
+    # Telemetry, feature-flag and logging infrastructure.
+    "com.statsig.", "com.tiledmedia.", "org.slf4j.", "org.apache.logging.",
+    "ch.qos.logback.",
+    # TikTok SDK internals (analytics + in-app billing proxy) bundled in other apps.
+    "com.tiktok.appevents.", "com.tiktok.iap.", "com.tiktok.monitoring.",
 )
 
 _CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
@@ -55,7 +69,8 @@ _CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
 # apply the penalty (see ``Objective.penalise_ui_names``).
 _UI_NAME_TOKENS = frozenset({
     "hint", "banner", "toast", "snackbar", "tooltip", "badge",
-    "prompt", "upsell", "onboarding",
+    "prompt", "upsell", "onboarding", "placeholder", "widget", "view",
+    "layout", "render", "drawer",
 })
 
 # Object-protocol and callback names. They can legitimately contain an SDK call
@@ -436,6 +451,12 @@ def _evaluate(
     if vendored and not objective.allow_vendored:
         return
 
+    if (
+        objective.excluded_vendor_packages
+        and cls.java_name.startswith(objective.excluded_vendor_packages)
+    ):
+        return
+
     # Only methods we can safely rewrite are useful. Morphe's returnEarly has
     # overloads for primitives, void and String; an arbitrary object or an array
     # would need hand-written register management.
@@ -542,7 +563,7 @@ def _evaluate(
     if (
         objective.penalise_ui_names
         and method.name in _GENERIC_METHOD_NAMES
-        and not (name_hits or class_hits or text_hits or literal_hit or pref_method_hit)
+        and not (name_hits or literal_hit or pref_method_hit)
     ):
         return
 

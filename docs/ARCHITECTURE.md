@@ -60,8 +60,9 @@ Context signals only corroborate: class-name tokens, text constants, return type
 
 Two filters keep the list honest on real apps:
 
-- A method **inside a bundled SDK** (`com.qonversion`, `com.android.billingclient`, Firebase, …) is treated as vendored. Its own calls to that SDK no longer count as a primary signal, so the tool does not propose patching an SDK's internal `getDurationDays`.
-- For "is this true?" goals, names that describe **display helpers** (`…Hint`, `…Banner`, `get…Label`) are penalised, and generic plumbing (`equals`, `hashCode`, `accept`) is ignored. `getHasSubscriptionUpgradeHint` controls an upsell banner, not the entitlement.
+- A method **inside a bundled SDK** (`com.qonversion`, `com.android.billingclient`, Firebase, Facebook, TikTok IAP, ad networks, …) is treated as vendored. Its own calls to that SDK no longer count as a primary signal, so the tool does not propose patching an SDK's internal `getDurationDays`.
+- For the **feature goals** (`ads`, `premium`, `root`, `emulator`, `updates`, `watermark`) a vendored method is dropped outright, not merely demoted: patching `com.google.firebase.crashlytics.internal.common.CommonUtils.isRooted` never changes the app. `tracking` is the exception — an analytics SDK entry point is exactly the hook that goal wants — but it still excludes generic logging (`org.slf4j`, `logback`, `com.google.common`, `org.jetbrains`, `com.squareup`).
+- For "is this true?" goals, names that describe **display helpers** (`…Hint`, `…Banner`, `…Placeholder`, `…Widget`, `…View`, `get…Label`) are penalised, and generic plumbing (`equals`, `hashCode`, `accept`) is ignored. `getHasSubscriptionUpgradeHint` controls an upsell banner, not the entitlement.
 
 Objectives that are easy to confuse (`premium`, `root`, `emulator`, `updates`, `watermark`) additionally require textual or library context, which is what stops `FilePathComponents.isRooted` from being reported in an app that does no root detection.
 
@@ -71,15 +72,17 @@ Each objective keeps at most six candidates, and at most two per class.
 
 Obfuscation renames `isPremiumUser()` to `a()`, so name matching returns nothing. The key the method reads from `SharedPreferences` usually survives: `KEY_PREMIUM`, `is_premium`, `premiumUser`.
 
-`core/preferences.py` builds one index per scan and treats a constant as an entitlement key only when it is shaped like a stored key (separator or camelCase) and is not an analytics event or a system action:
+`core/preferences.py` builds one index per scan and treats a constant as an entitlement key only when it is shaped like a stored key and is not an event, a bookkeeping value or a system action:
 
 - **Strong tokens** (`premium`, `licen`, `subscri`, `trial`, `entitle`, `vip`, `ad_free`, `no_ads`, …) pass on shape alone.
-- **Weak tokens** (`purchas`, `paid`, `unlock`) also need a key shape (`UPPER_SNAKE` or a state prefix such as `is_`/`has_`/`key_`).
-- Rejected: package/intent prefixes (`android.`, `com.`, `app_store_`, `in_app_`, `firebase_`), analytics event suffixes (`_started`, `_cancel`, `_purchased`, …), and URL-looking strings.
+- **Weak tokens** (`purchas`, `paid`, `unlock`) additionally need an explicit **state prefix** in the first two words (`is_purchased`, `hasPaidPlan`, `KEY_PURCHASE`). A noun phrase such as `PURCHASE_DETAILS_SET` or `purchaseToken` is a data field, not a flag.
+- Rejected: package/intent prefixes (`android.`, `com.`, `app_store_`, `in_app_`, `firebase_`), analytics event suffixes (`_started`, `_cancel`, `_purchased`, …), ALL-CAPS event vocabulary (`…EVENT_TYPE…`, `…_ANALYTICS…`), negations (`playlistUnsubscriber` — `unsub` is the opposite of `subscri`), bare CamelCase event names (`StartTrial`, `SubscriptionRestore`), purchase bookkeeping (`LAST_QUERY_PURCHASE_HISTORY_TIME`, `*_refresh_time`, `*Count`), and URL-looking strings.
+
+The distinction matters on real apps: Moises 2.72 stores `LAST_QUERY_PURCHASE_HISTORY_TIME` and `PURCHASE_DETAILS_SET` next to its billing code, and neither is a paid flag, so the premium goal now honestly reports **no hook** instead of proposing a cache-throttle getter.
 
 A candidate gets preference evidence in two ways:
 
-1. **Method level** — the parameterless method itself carries the key (`isTrialExpired` reads `trialExpired`). Strongest signal, and the key becomes a fingerprint anchor.
+1. **Method level** — the parameterless method itself carries the key (`isTrialExpired` reads `trialExpired`) **and** actually touches `SharedPreferences` (accessor call, prefs field, or a prefs-aware class). A model's `toString` that happens to contain the word `premiumUser` is not evidence. Strongest signal, and the key becomes a fingerprint anchor.
 2. **Class level** — the class owns the key and the method is a parameterless `Z`/`I`/`J` getter. To avoid flagging analytics barrels, the class must really touch `SharedPreferences` (accessor call or field), hold at most four keys, and declare at most twelve methods.
 
 ### Boolean polarity

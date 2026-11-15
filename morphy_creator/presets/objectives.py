@@ -86,6 +86,11 @@ class Objective:
     # code is the target, not RecyclerView internals that happen to use 0x2000.
     allow_vendored: bool = True
 
+    # Packages that are never a useful hook for this goal, even when vendored
+    # code is otherwise allowed (analytics SDKs are the point of ``tracking``;
+    # a logging facade such as slf4j is not).
+    excluded_vendor_packages: Tuple[str, ...] = field(default_factory=tuple)
+
     # For "is this true?" goals, a method whose name talks about a hint, banner
     # or dialog is usually a display helper, not the decision. That distinction
     # is meaningless for "hide ads" / "remove watermark", where hiding is the
@@ -120,9 +125,9 @@ OBJECTIVES: Tuple[Objective, ...] = (
         ),
         verify_hint="Open the app and browse 3-4 screens: no banner, no pop-up, no video ad.",
         method_keywords=(
-            "showad", "loadad", "isad", "adloaded", "advisible", "displayad",
-            "showinterstitial", "loadinterstitial", "showrewarded", "isadavailable",
-            "adsvisible", "shouldshowad", "getad", "requestad", "adrequest",
+            "showad", "loadad", "showinterstitial", "loadinterstitial",
+            "showrewarded", "isadavailable", "isadshown", "isadenabled",
+            "isadblocked", "shouldshowad", "requestad", "adrequest",
             "ispremiumuser", "shouldshowads",
         ),
         class_keywords=("ad", "ads", "advert", "interstitial", "admob", "appodeal"),
@@ -141,6 +146,8 @@ OBJECTIVES: Tuple[Objective, ...] = (
         ),
         acceptable_returns=("Z", "V"),
         min_score=4,
+        allow_vendored=False,
+        penalise_ui_names=True,
         tags=("monetisation",),
     ),
     Objective(
@@ -179,6 +186,7 @@ OBJECTIVES: Tuple[Objective, ...] = (
         acceptable_returns=("Z", "I", "J"),
         min_score=4,
         require_context=True,
+        allow_vendored=False,
         penalise_ui_names=True,
         trace_preference_keys=True,
         tags=("monetisation",),
@@ -232,6 +240,7 @@ OBJECTIVES: Tuple[Objective, ...] = (
         acceptable_returns=("Z", "I"),
         min_score=4,
         require_context=True,
+        allow_vendored=False,
         penalise_ui_names=True,
         tags=("security",),
     ),
@@ -255,6 +264,7 @@ OBJECTIVES: Tuple[Objective, ...] = (
         acceptable_returns=("Z", "I"),
         min_score=4,
         require_context=True,
+        allow_vendored=False,
         penalise_ui_names=True,
         tags=("security",),
     ),
@@ -287,6 +297,10 @@ OBJECTIVES: Tuple[Objective, ...] = (
         strategies=(STRATEGY_CLEAR_BODY, STRATEGY_RETURN_VOID),
         acceptable_returns=("V",),
         min_score=4,
+        excluded_vendor_packages=(
+            "org.slf4j.", "org.apache.logging.", "ch.qos.logback.",
+            "com.google.common.", "org.jetbrains.", "com.squareup.",
+        ),
         tags=("privacy",),
     ),
     Objective(
@@ -312,6 +326,7 @@ OBJECTIVES: Tuple[Objective, ...] = (
         acceptable_returns=("Z", "V"),
         min_score=4,
         require_context=True,
+        allow_vendored=False,
         penalise_ui_names=True,
         tags=("quality-of-life",),
     ),
@@ -332,6 +347,7 @@ OBJECTIVES: Tuple[Objective, ...] = (
         acceptable_returns=("V",),
         min_score=4,
         require_context=True,
+        allow_vendored=False,
         tags=("quality-of-life",),
     ),
 )

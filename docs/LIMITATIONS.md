@@ -51,7 +51,7 @@ No static tool can guarantee an update-proof match; the verifier still warns whe
 "Remove ads" covers the common client-side pattern. Ad SDKs that decide server-side, or that stitch video server-side, will keep showing ads. Some apps route analytics through a shared method that also carries crash reports; disabling it may lose crash data — the report says when that risk applies.
 
 ### 8. Decisions hidden inside a bundled SDK
-Some apps delegate purchases or analytics to an SDK and keep no local check of their own. The only remaining match is then inside the SDK. The tool reports **"SDK found, no hook"** rather than suggesting an internal method: patching SDK internals is unreliable and breaks on every SDK update. `--details` names the SDK so the reason is visible.
+Some apps delegate purchases or analytics to an SDK and keep no local check of their own. The only remaining match is then inside the SDK. The tool reports **"SDK found, no hook"** rather than suggesting an internal method: patching SDK internals is unreliable and breaks on every SDK update. This is enforced, not just advised: for `ads`, `premium`, `root`, `emulator`, `updates` and `watermark` a method declared inside a bundled SDK is dropped, and `tracking` keeps analytics entry points but still excludes generic logging. `--details` names the SDK so the reason is visible.
 
 The preference-key pass often recovers the app's *own* entitlement check even when the billing UI lives in an SDK: the key the app writes after a purchase (`KEY_PREMIUM`) is stored by app code, in a small holder class, not by the SDK. That is why an obfuscated app such as Showly 3.72 still yields exactly one target (`az4.a`) for the premium goal, while `morphy_preferences` shows the evidence.
 
