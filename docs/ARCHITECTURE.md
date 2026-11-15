@@ -86,11 +86,13 @@ A candidate gets preference evidence in two ways:
 
 `choose_strategy` reads the method name before answering. `hasPaidLicense` must answer "yes"; `isTrialExpired` must answer "no"; `hasNoAds` is the positive ad-free state. The objective's strategy order is the baseline, and a small polarity check flips it — so the generated Kotlin says `returnEarly(false)` for `isTrialExpired` instead of granting a false entitlement.
 
-### Call graph (investigation only)
+### Call graph and investigation
 
-`core/xrefs.py` indexes forward and reverse edges over the APK's **own** methods; framework calls are skipped because they add no investigative value. It is built on demand (MCP `morphy_xrefs`, and the future agent loop), never during the normal scan.
+`core/xrefs.py` indexes forward and reverse edges over the APK's **own** methods; framework calls are skipped because they add no investigative value. It is built on demand (MCP `morphy_xrefs`, CLI `investigate`), never during the normal scan.
 
 - Signature grouping (overrides, interface implementations) is disabled for obfuscated names (`a`, `az4`): an R8 `a()Z` is not an override, it is a coincidence.
+
+`core/investigate.py` turns a goal into an evidence dossier: for each candidate it quotes the preference key, literal, distinctive string or name match that supports it, plus its callers and callees. Evidence is ranked `strong` (method-level key, literal, name match, distinctive string), `moderate` (class-level key, SDK call), `weak` (context only) and `none`. Only `strong` and `moderate` are recommended, so the CLI and an AI agent follow the same rule: **no evidence, no patch**.
 
 ### Fingerprint uniqueness
 

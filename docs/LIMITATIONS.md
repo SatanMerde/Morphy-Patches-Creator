@@ -11,6 +11,7 @@
 | Handles multi-DEX apps | every `classesN.dex` is scanned once |
 | Survives obfuscation | preference-key tracing, SDK calls and literals work without names |
 | Answers "who calls this?" | on-demand call graph (`morphy_xrefs`) over the app's own methods |
+| Explains its evidence | `investigate` dossier ranks strong / moderate / weak / none |
 | Checks its own fingerprints | every candidate must match exactly one method in the APK |
 | Writes current-API Kotlin | `patch(...)`, `Fingerprint`, `returnEarly`, `replaceInstruction` |
 | Rejects stale API | verifier fails on `@Patch` / `replaceMethod` |

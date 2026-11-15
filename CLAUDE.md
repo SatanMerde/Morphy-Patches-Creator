@@ -25,6 +25,7 @@ This repository builds Morphe patches (`.mpp`) for Android apps. The primary use
 ```bash
 morphy-creator                      # wizard (default)
 morphy-creator inspect app.apk --details
+morphy-creator investigate app.apk --goal "unlock premium" --details
 morphy-creator create app.apk --for ads,premium -y
 morphy-creator auto  app.apk --prompt "remove ads and screenshots"
 morphy-creator build <folder>
@@ -48,4 +49,4 @@ Tests: `python -m pytest tests -q` (no APK, JDK or network needed).
 }
 ```
 
-Tools: `morphy_list_goals`, `morphy_inspect_apk`, `morphy_create_patch`, `morphe_unpack_apk`, `morphe_decompile_java`, `morphe_build_bundle`.
+Tools: `morphy_list_goals`, `morphy_inspect_apk`, `morphy_create_patch`, `morphy_xrefs`, `morphy_search_strings`, `morphy_preferences`, `morphy_class_details`, `morphy_investigate`, `morphe_unpack_apk`, `morphe_decompile_java`, `morphe_build_bundle`.

@@ -141,6 +141,7 @@ class TargetCandidate:
     dex_file: str = ""
     # Preference keys that made this method suspicious (survives obfuscation).
     preference_keys: List[str] = field(default_factory=list)
+    preference_source: str = ""
     # Fingerprint uniqueness against the APK the candidate came from.
     fingerprint_verdict: str = ""
     fingerprint_matches: int = 1
@@ -149,6 +150,11 @@ class TargetCandidate:
     @property
     def signature(self) -> str:
         return f"{self.class_name}.{self.method_name}"
+
+    @property
+    def full_name(self) -> str:
+        """DEX reference: ``Lcom/foo/Bar;->a()Z`` (used by the call graph)."""
+        return f"{self.class_descriptor}->{self.method_name}{self.method_descriptor}"
 
     def to_dict(self) -> Dict[str, object]:
         return {
@@ -164,6 +170,7 @@ class TargetCandidate:
             "literals": self.literals[:8],
             "reasons": self.reasons,
             "preference_keys": self.preference_keys,
+            "preference_source": self.preference_source,
             "fingerprint": {
                 "verdict": self.fingerprint_verdict,
                 "matches": self.fingerprint_matches,
@@ -584,6 +591,7 @@ def _evaluate(
         reasons=_dedupe(reasons)[:4],
         dex_file=dex_name,
         preference_keys=pref_keys,
+        preference_source=pref_evidence.source if pref_hit and pref_evidence else "",
     )
 
     finding.candidates.append(candidate)

@@ -6,6 +6,11 @@ Exposes the real analysis/generation engine to AI assistants:
 * ``morphy_inspect_apk``      - what is patchable in this app, and why,
 * ``morphy_create_patch``     - analyse + generate patch sources + bundle,
 * ``morphy_list_goals``       - the supported objectives,
+* ``morphy_xrefs``            - callers / callees of an app method,
+* ``morphy_search_strings``   - methods that contain a text constant,
+* ``morphy_preferences``      - entitlement-like preference keys and getters,
+* ``morphy_class_details``    - structural view of one class,
+* ``morphy_investigate``      - evidence dossier for a goal,
 * ``morphe_unpack_apk``       - Apktool decompilation,
 * ``morphe_decompile_java``   - JADX decompilation,
 * ``morphe_build_bundle``     - compile the generated sources into a .mpp.
@@ -137,6 +142,53 @@ TOOLS: List[Dict[str, Any]] = [
                 "limit": {"type": "integer", "description": "Maximum getters returned (default 40)"},
             },
             "required": ["apk_path"],
+        },
+    },
+    {
+        "name": "morphy_class_details",
+        "description": (
+            "Structural view of one class: method signatures, the strings each method "
+            "uses, the calls it makes and the fields it touches. Use it to read an "
+            "obfuscated class before choosing a target. This is not Java source; use "
+            "morphe_decompile_java for that."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "apk_path": {"type": "string"},
+                "class_name": {
+                    "type": "string",
+                    "description": "DEX descriptor (Lcom/foo/Bar;) or a class-name fragment",
+                },
+                "limit": {"type": "integer", "description": "Maximum classes returned (default 3)"},
+            },
+            "required": ["apk_path", "class_name"],
+        },
+    },
+    {
+        "name": "morphy_investigate",
+        "description": (
+            "Evidence dossier for a goal: for each candidate, the preference keys, "
+            "strings, literals, callers and callees that justify it. A candidate with "
+            "no hard evidence is marked 'weak' and is not recommended. Read-only."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "apk_path": {"type": "string"},
+                "goal": {"type": "string", "description": "Plain-language goal"},
+                "objectives": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Explicit goal ids (optional, overrides goal matching)",
+                },
+                "with_call_graph": {
+                    "type": "boolean",
+                    "description": "Include callers/callees (default true; slower)",
+                },
+                "max_candidates": {"type": "integer", "description": "Per goal (default 4)"},
+            },
+            "required": ["apk_path", "goal"],
         },
     },
     {
@@ -364,6 +416,92 @@ def handle_call_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
             "keys": keys[:limit],
             "candidate_getters": getters[:limit],
         }
+
+    if name == "morphy_class_details":
+        query = str(arguments["class_name"]).strip()
+        limit = int(arguments.get("limit", 3))
+        exact_descriptor = query if query.startswith("L") and query.endswith(";") else ""
+        needle = query.lower().replace(".", "/")
+
+        container = ApkContainer.open(Path(arguments["apk_path"]))
+        try:
+            found: List[Dict[str, Any]] = []
+            for dex in container.dex_files():
+                for cls in dex.classes:
+                    if exact_descriptor:
+                        matches = cls.descriptor == exact_descriptor
+                    else:
+                        matches = needle in cls.descriptor.lower() or needle in cls.java_name.lower()
+                    if not matches:
+                        continue
+
+                    methods: List[Dict[str, Any]] = []
+                    for method in cls.methods[:80]:
+                        code = method.code() if method.has_body else None
+                        methods.append(
+                            {
+                                "name": method.name,
+                                "descriptor": method.descriptor,
+                                "return_type": method.return_type,
+                                "access_flags": f"0x{method.access_flags:04x}",
+                                "static": method.is_static,
+                                "has_body": method.has_body,
+                                "strings": (code.strings[:6] if code else []),
+                                "calls": (code.called_methods[:6] if code else []),
+                                "fields": ([name for (_op, name, _type) in code.field_accesses[:6]]
+                                           if code else []),
+                            }
+                        )
+                    found.append(
+                        {
+                            "descriptor": cls.descriptor,
+                            "java_name": cls.java_name,
+                            "super": cls.super_descriptor,
+                            "source_file": cls.source_file,
+                            "method_count": len(cls.methods),
+                            "methods": methods,
+                        }
+                    )
+                    if len(found) >= limit:
+                        break
+                if len(found) >= limit:
+                    break
+        finally:
+            container.close()
+
+        if not found:
+            return {
+                "query": query,
+                "error": (
+                    "No class matches. Use a descriptor such as Lcom/foo/Bar; "
+                    "or a package fragment such as com/foo."
+                ),
+            }
+        return {"query": query, "classes": found}
+
+    if name == "morphy_investigate":
+        from morphy_creator.core.investigate import investigate as run_investigation
+
+        goal = str(arguments["goal"])
+        objectives = [
+            OBJECTIVES_BY_ID[str(item)]
+            for item in (arguments.get("objectives") or [])
+            if str(item) in OBJECTIVES_BY_ID
+        ]
+        if not objectives:
+            objectives = match_text(goal)
+        if not objectives:
+            keywords = [word for word in goal.replace(",", " ").split() if len(word) > 3]
+            if not keywords:
+                return {"goal": goal, "error": "No keywords to investigate."}
+            objectives = [custom_objective(keywords)]
+
+        return run_investigation(
+            Path(arguments["apk_path"]),
+            objectives,
+            with_call_graph=bool(arguments.get("with_call_graph", True)),
+            max_candidates=int(arguments.get("max_candidates", 4)),
+        )
 
     if name == "morphe_unpack_apk":
         from morphy_creator.adapters.apktool_adapter import ApktoolAdapter

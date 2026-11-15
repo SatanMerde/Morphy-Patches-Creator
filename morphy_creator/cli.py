@@ -10,6 +10,7 @@ Everything is also scriptable through ``create`` with flags.
 """
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
@@ -535,6 +536,94 @@ def inspect(apk: str, objective_ids: str, details: bool) -> None:
         report = analyse(Path(apk), objectives)
     _show_apk_card(report.info)
     _show_findings(report, objectives, details=details)
+
+
+@cli.command()
+@click.argument("apk", type=click.Path(exists=True, dir_okay=False))
+@click.option("--goal", "goal_text", required=True, help="What you want to change, in plain words")
+@click.option("--for", "objective_ids", default="", help="Limit to explicit goal ids (optional)")
+@click.option("--json", "as_json", is_flag=True, help="Print the evidence dossier as JSON")
+@click.option("--details", is_flag=True, help="Show calls, callers and every evidence line")
+@click.option("--no-call-graph", is_flag=True, help="Skip the call graph (faster)")
+@click.option("--max-candidates", default=4, show_default=True, type=int,
+              help="Candidates to inspect per goal")
+def investigate(apk: str, goal_text: str, objective_ids: str, as_json: bool,
+                details: bool, no_call_graph: bool, max_candidates: int) -> None:
+    """Explain the evidence behind a goal before any patch is written."""
+    from morphy_creator.core.investigate import investigate as run_investigation
+
+    objectives = _parse_objective_flag(objective_ids) or match_text(goal_text)
+    if not objectives:
+        keywords = [word for word in goal_text.replace(",", " ").split() if len(word) > 3]
+        if not keywords:
+            _friendly_error(
+                "I did not understand the goal.",
+                "Example: --goal \"unlock premium features\"",
+            )
+            raise SystemExit(2)
+        objectives = [custom_objective(keywords)]
+
+    with console.status("[cyan]Collecting evidence...[/cyan]", spinner="dots"):
+        dossier = run_investigation(
+            Path(apk),
+            objectives,
+            with_call_graph=not no_call_graph,
+            max_candidates=max_candidates,
+        )
+
+    if as_json:
+        click.echo(json.dumps(dossier, indent=2, ensure_ascii=False))
+        return
+
+    console.print(Panel.fit(
+        f"[bold]{escape(str(dossier.get('package') or '?'))}[/bold]  "
+        f"version {escape(str(dossier.get('version') or '?'))}\n"
+        f"[dim]Goal: {escape(goal_text)}[/dim]",
+        border_style="cyan",
+    ))
+
+    goals = dossier.get("goals") or []
+    if not goals:
+        console.print("[yellow]No goal was analysed.[/yellow]")
+        return
+
+    for goal in goals:
+        console.print(f"\n[bold]{escape(str(goal['title']))}[/bold]  "
+                      f"[dim]({goal['candidate_count']} candidate(s), "
+                      f"confidence {goal['confidence']})[/dim]")
+        recommended = goal.get("recommended")
+        if recommended:
+            console.print(
+                f"  [green]Recommended:[/green] {escape(str(recommended['signature']))}  "
+                f"[dim]({recommended['level']} evidence, {recommended['strategy']})[/dim]"
+            )
+        else:
+            console.print(
+                "  [red]Insufficient evidence:[/red] no candidate can be justified, "
+                "so no patch would be generated."
+            )
+
+        rows = goal.get("candidates") or []
+        if details:
+            for row in rows:
+                console.print(
+                    f"\n  [bold]{escape(str(row['signature']))}[/bold]  "
+                    f"[dim]score {row['score']}, {row['level']} evidence, "
+                    f"fingerprint {row['fingerprint']['verdict']}[/dim]"
+                )
+                for line in row.get("evidence") or []:
+                    console.print(f"    - {escape(str(line))}")
+                if row.get("callers"):
+                    console.print("    callers: " + escape(", ".join(row["callers"][:5])))
+                if row.get("calls"):
+                    console.print("    calls:   " + escape(", ".join(row["calls"][:5])))
+
+        for note in goal.get("notes") or []:
+            if note:
+                console.print(f"  [yellow]Note:[/yellow] {escape(str(note))}")
+
+    if details:
+        console.print("\n[dim]Evidence is read from the APK. Nothing above is simulated.[/dim]")
 
 
 @cli.command()

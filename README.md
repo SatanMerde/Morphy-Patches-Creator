@@ -131,6 +131,7 @@ Every candidate is scored on concrete evidence: a method-name match, a call into
 |---|---|
 | `morphy-creator` | Interactive wizard (the recommended path) |
 | `morphy-creator inspect app.apk` | Analyse only, write nothing (`--details` shows the evidence) |
+| `morphy-creator investigate app.apk --goal "unlock premium"` | Evidence dossier per candidate, no patch written (`--json`, `--details`) |
 | `morphy-creator create app.apk --for ads,premium -y` | Same pipeline, non-interactive |
 | `morphy-creator auto app.apk --prompt "remove ads and screenshots"` | Goal in plain words |
 | `morphy-creator build <folder>` | Compile generated patches into a `.mpp` |
@@ -249,7 +250,7 @@ See [docs/LIMITATIONS.md](docs/LIMITATIONS.md) for the detailed breakdown.
 
 ## AI assistants (MCP)
 
-`morphy-creator mcp` exposes nine tools over the Model Context Protocol:
+`morphy-creator mcp` exposes eleven tools over the Model Context Protocol:
 
 | Tool | Purpose |
 |---|---|
@@ -259,11 +260,13 @@ See [docs/LIMITATIONS.md](docs/LIMITATIONS.md) for the detailed breakdown.
 | `morphy_xrefs` | Call graph: who calls a method, and what it calls |
 | `morphy_search_strings` | Find the methods that contain a given text constant |
 | `morphy_preferences` | Entitlement-like preference keys and the getters that expose them |
+| `morphy_class_details` | Structural view of one class (methods, strings, calls, fields) |
+| `morphy_investigate` | Evidence dossier for a goal, with a strong/moderate/weak verdict |
 | `morphe_unpack_apk` | Apktool decompilation |
 | `morphe_decompile_java` | JADX decompilation |
 | `morphe_build_bundle` | Compile generated sources into a `.mpp` |
 
-The three investigation tools exist so an AI assistant can follow evidence instead of guessing: search a string (`KEY_PREMIUM`) → list the methods that contain it → walk the call graph to the activity that consumes it. The engine only returns facts read from the APK.
+The investigation tools exist so an AI assistant can follow evidence instead of guessing: search a string (`KEY_PREMIUM`) → list the methods that contain it → read the class → walk the call graph to the activity that consumes it → ask for the evidence dossier. `morphy_investigate` returns a candidate as `weak` (not recommended) when no preference key, literal, distinctive string or name match backs it, so the agent keeps the same "no evidence = no patch" rule as the CLI.
 
 Example OpenCode / Claude Desktop configuration:
 
@@ -299,6 +302,7 @@ Morphy-Patches-Creator/
 │   │   ├── xrefs.py            # call graph: callers / callees / implementations
 │   │   ├── preferences.py      # entitlement preference-key tracing
 │   │   ├── fingerprint.py      # fingerprint uniqueness against the APK
+│   │   ├── investigate.py      # evidence dossier: strong / moderate / weak / none
 │   │   ├── plan.py             # patch plan: naming, confidence, de-duplication
 │   │   ├── verifier.py         # API/structural check of generated Kotlin
 │   │   ├── agent.py            # PatchAgent.create: whole pipeline in one call
@@ -324,7 +328,7 @@ The analysis engine has **no third-party dependency**: DEX and AXML are parsed d
 .\.venv\Scripts\python.exe -m pytest tests -q
 ```
 
-The test suite covers the verifier (including rejection of the old ReVanced API), the Kotlin renderer, plan naming/confidence/de-duplication, camelCase token matching, the objective catalogue, the call graph, preference-key tracing, fingerprint uniqueness, split bundles and the writer, with no APK, JDK or network required.
+The test suite covers the verifier (including rejection of the old ReVanced API), the Kotlin renderer, plan naming/confidence/de-duplication, camelCase token matching, the objective catalogue, the call graph, preference-key tracing, fingerprint uniqueness, the investigation evidence levels, split bundles and the writer, with no APK, JDK or network required.
 
 ---
 

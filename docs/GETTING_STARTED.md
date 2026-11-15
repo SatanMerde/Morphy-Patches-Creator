@@ -73,9 +73,10 @@ Keep the original APK. Reinstalling it is the clean rollback.
 ## 5. If a goal finds nothing
 
 - Try `morphy-creator inspect app.apk --details`: the report shows the evidence, or why nothing scored high enough.
+- Run `morphy-creator investigate app.apk --goal "..." --details` to see each candidate ranked strong / moderate / weak. If every candidate is weak, the tool will not recommend a patch.
 - **"SDK found, no hook"** means the app delegates that feature to a library and keeps no local check the tool trusts. Patching inside the SDK is deliberately avoided; try another goal.
 - Use the **Something else** option (`a`) with a word you actually saw in the app — a menu label, an error message, a feature name. Custom search looks at method names, class names and text constants.
-- Obfuscated apps (R8/ProGuard) hide names; the tool then relies on SDK calls and literals, which is less precise.
+- Obfuscated apps (R8/ProGuard) hide names; the tool then relies on preference keys, SDK calls and literals, which is less precise.
 
 ## 6. Verify and share
 

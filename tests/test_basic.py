@@ -25,6 +25,14 @@ from morphy_creator.core.analysis import (
 from morphy_creator.core.apk import ApkInfo
 from morphy_creator.core.dex import descriptor_to_java, looks_like_obfuscated
 from morphy_creator.core.fingerprint import check_candidate, check_report
+from morphy_creator.core.investigate import (
+    LEVEL_MODERATE,
+    LEVEL_NONE,
+    LEVEL_STRONG,
+    LEVEL_WEAK,
+    _classify,
+    _enrich,
+)
 from morphy_creator.core.preferences import (
     PreferenceEvidence,
     PreferenceIndex,
@@ -746,6 +754,68 @@ def test_fingerprint_report_drops_missing_candidates():
     check_report(report, [fake_dex([method])])
     assert finding.candidates == []
     assert any("discarded" in warning for warning in report.warnings)
+
+
+# ---------------------------------------------------------------------------
+# Investigation dossier
+# ---------------------------------------------------------------------------
+def test_evidence_levels_are_ordered_by_proof():
+    method_level = make_candidate(
+        preference_keys=["KEY_PREMIUM"], preference_source="method", reasons=[],
+        strings=[],
+    )
+    assert _classify(method_level)[0] == LEVEL_STRONG
+
+    class_level = make_candidate(
+        preference_keys=["trialState"], preference_source="class", reasons=[],
+        strings=[],
+    )
+    assert _classify(class_level)[0] == LEVEL_MODERATE
+
+    contextual = make_candidate(reasons=["class name matches 'billing'"], strings=[])
+    assert _classify(contextual)[0] == LEVEL_WEAK
+
+    nothing = make_candidate(reasons=[], strings=[])
+    assert _classify(nothing)[0] == LEVEL_NONE
+
+
+def test_evidence_quotes_real_values():
+    candidate = make_candidate(
+        preference_keys=["KEY_PREMIUM"], preference_source="class",
+        literals=[0x2000], literal_sites=[(0x12, 0, 0x2000)],
+        strings=["KEEP_SCREEN_ON_DISABLED"], reasons=[],
+    )
+    level, lines = _classify(candidate)
+    joined = " ".join(lines)
+    assert level == LEVEL_STRONG
+    assert "KEY_PREMIUM" in joined
+    assert "0x2000" in joined
+    assert "KEEP_SCREEN_ON_DISABLED" in joined
+
+
+def test_enrich_marks_patchable_only_with_evidence():
+    evidence = _enrich(make_candidate(preference_keys=["KEY_PREMIUM"],
+                                      preference_source="class", reasons=[]), graph=None)
+    assert evidence.patchable is True
+    assert evidence.callers == []
+    assert evidence.to_dict()["level"] == LEVEL_MODERATE
+
+    weak = _enrich(make_candidate(reasons=[], strings=[]), graph=None)
+    assert weak.patchable is False
+
+
+def test_mcp_registers_investigation_tools():
+    from morphy_creator.mcp_server import TOOLS
+
+    names = {tool["name"] for tool in TOOLS}
+    assert len(TOOLS) == 11
+    assert {
+        "morphy_xrefs",
+        "morphy_search_strings",
+        "morphy_preferences",
+        "morphy_class_details",
+        "morphy_investigate",
+    } <= names
 
 
 # ---------------------------------------------------------------------------
